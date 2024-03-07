@@ -14,7 +14,7 @@ func main() {
 func run() error {
 	metric := handlers.Metric{}
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /update/{metric_type}/{metric_name}/{metric_value}", metric.Update)
+	mux.HandleFunc("POST /update/{metricType}/{metricName}/{metricValue}", metric.Update)
 	mux.HandleFunc(`/`, badrequest)
 	return http.ListenAndServe(`:8080`, mux)
 }

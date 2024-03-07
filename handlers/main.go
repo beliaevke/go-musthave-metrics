@@ -6,9 +6,9 @@ import (
 )
 
 type Metric struct {
-	metric_type  string
-	metric_name  string
-	metric_value string
+	metricType  string
+	metricName  string
+	metricValue string
 }
 
 func (m Metric) Update(w http.ResponseWriter, r *http.Request) {
@@ -20,16 +20,16 @@ func (m Metric) Update(w http.ResponseWriter, r *http.Request) {
 }
 
 func (m *Metric) setValue(r *http.Request) {
-	m.metric_type = r.PathValue("metric_type")
-	m.metric_name = r.PathValue("metric_name")
-	m.metric_value = r.PathValue("metric_value")
+	m.metricType = r.PathValue("metricType")
+	m.metricName = r.PathValue("metricName")
+	m.metricValue = r.PathValue("metricValue")
 }
 
 func (m Metric) isValid() bool {
-	if m.metric_type == "" || m.metric_name == "" || m.metric_value == "" {
+	if m.metricType == "" || m.metricName == "" || m.metricValue == "" {
 		return false
 	}
-	if !(m.metric_type == "counter" || m.metric_type == "gauge") {
+	if !(m.metricType == "counter" || m.metricType == "gauge") {
 		return false
 	}
 	return true
@@ -38,10 +38,10 @@ func (m Metric) isValid() bool {
 func (m Metric) add() error {
 	var Repository storage.Repository
 	var err error
-	if m.metric_type == "gauge" {
-		Repository = storage.GaugeMetric{Name: m.metric_name, Value: m.metric_value}
-	} else if m.metric_type == "counter" {
-		Repository = storage.CounterMetric{Name: m.metric_name, Value: m.metric_value}
+	if m.metricType == "gauge" {
+		Repository = storage.GaugeMetric{Name: m.metricName, Value: m.metricValue}
+	} else if m.metricType == "counter" {
+		Repository = storage.CounterMetric{Name: m.metricName, Value: m.metricValue}
 	}
 	err = Repository.Add()
 	return err
