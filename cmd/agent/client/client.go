@@ -3,7 +3,9 @@ package client
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 )
 
 type ClientMetrics interface {
@@ -44,6 +46,7 @@ func (localhost Localhost) UpdateMetrics(mtype string, mname string, mvalue stri
 	if err != nil {
 		panic(err)
 	}
-	defer response.Body.Close()
+	io.Copy(os.Stdout, response.Body) // вывод ответа в консоль
+	response.Body.Close()
 	return nil
 }

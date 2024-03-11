@@ -18,13 +18,12 @@ type agent struct {
 }
 
 func (agent *agent) run() {
-	fmt.Printf("%s === Start agent ===\n", time.Now().Format(time.DateTime))
-	agent.CounterMetrics = make(map[string]int64, 1)
-	agent.GaugeMetrics = make(map[string]string)
-	agent.PollMetrics()
-	agent.ReportMetrics()
-	time.Sleep(20 * time.Second)
-	fmt.Printf("%s === Stop agent ===\n", time.Now().Format(time.DateTime))
+	agent.printAgentLog("Start")
+	agent.initMetrics()
+	agent.pollMetrics()
+	agent.reportMetrics()
+	time.Sleep(30 * time.Second)
+	agent.printAgentLog("Stop")
 }
 
 func newAgent(pollInterval int, reportInterval int) (*agent, error) {
@@ -35,32 +34,38 @@ func newAgent(pollInterval int, reportInterval int) (*agent, error) {
 }
 
 func main() {
-	agent, err := newAgent(2, 5)
+	agent, err := newAgent(2, 10)
 	if err != nil {
 		panic(err)
 	}
 	agent.run()
 }
 
-func (agent *agent) PollMetrics() {
+func (agent *agent) initMetrics() {
+	agent.CounterMetrics = make(map[string]int64, 1)
+	agent.GaugeMetrics = make(map[string]string)
+}
+
+func (agent *agent) pollMetrics() {
 	f := func() {
 		agent.setMetrics()
-		agent.PollMetrics()
+		agent.pollMetrics()
 		agent.printMetricsLog("<= Read")
 	}
 	time.AfterFunc(time.Duration(agent.pollInterval)*time.Second, f)
 }
 
-func (agent *agent) ReportMetrics() {
+func (agent *agent) reportMetrics() {
 	f := func() {
-		agent.PushMetrics()
-		agent.ReportMetrics()
+		agent.pushMetrics()
+		agent.reportMetrics()
 		agent.printMetricsLog("=> Push")
 	}
 	time.AfterFunc(time.Duration(agent.reportInterval)*time.Second, f)
 }
 
-func (agent *agent) PushMetrics() {
+func (agent *agent) pushMetrics() {
+	defer agent.printErrorLog()
 	lh := client.Localhost{}
 	for name, val := range agent.CounterMetrics {
 		lh.UpdateMetrics("counter", name, strconv.FormatInt(val, 10))
@@ -78,10 +83,11 @@ func (agent *agent) setMetrics() {
 	// memStats (gauge)
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-	SetGaugeMemStatsMetrics(memStats, agent)
+	setGaugeMemStatsMetrics(memStats, agent)
 }
 
-func SetGaugeMemStatsMetrics(s interface{}, agent *agent) {
+func setGaugeMemStatsMetrics(s interface{}, agent *agent) {
+	defer agent.printErrorLog()
 	valOf := reflect.ValueOf(s)
 	typOf := reflect.TypeOf(s)
 	for i := 0; i < valOf.NumField(); i++ {
@@ -99,6 +105,25 @@ func SetGaugeMemStatsMetrics(s interface{}, agent *agent) {
 			value = "0"
 		}
 		agent.GaugeMetrics[typField.Name] = value
+	}
+}
+
+func (agent *agent) printAgentLog(operation string) {
+	fmt.Printf(
+		"%s === %s agent ===\n",
+		time.Now().Format(time.DateTime),
+		operation,
+	)
+}
+
+func (agent *agent) printErrorLog() {
+	if err := recover(); err != nil {
+		fmt.Printf(
+			"%s xxx Error: %s \n",
+			time.Now().Format(time.DateTime),
+			err,
+		)
+		panic(err)
 	}
 }
 
