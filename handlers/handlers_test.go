@@ -115,8 +115,8 @@ func TestUpdate(t *testing.T) {
 					// Use testRequest for valid patterns
 					ts := httptest.NewServer(r)
 					defer ts.Close()
-
 					resp, body := testRequest(t, ts, tc.method, tc.path, nil)
+					defer resp.Body.Close()
 					if body != tc.expectedBody || resp.StatusCode != tc.expectedStatus {
 						t.Errorf("Expected status %d and body %s; got status %d and body %s for pattern %s",
 							tc.expectedStatus, tc.expectedBody, resp.StatusCode, body, tc.pattern)

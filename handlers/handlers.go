@@ -81,7 +81,7 @@ func repo(m Metric) (repository storage.Repository) {
 	return
 }
 
-func allMetricsBody(rows_g string, rows_c string) string {
+func allMetricsBody(rowsg string, rowsc string) string {
 	body :=
 		`<html>
 		<head>
@@ -96,7 +96,7 @@ func allMetricsBody(rows_g string, rows_c string) string {
 					</tr>
 				</thead>
 				<tbody>
-					%rows_g
+					%rowsg
 				</tbody>
 			</table>
 			<table border="1" cellpadding="1" cellspacing="1" style="width: 500px">
@@ -107,12 +107,12 @@ func allMetricsBody(rows_g string, rows_c string) string {
 					</tr>
 				</thead>
 				<tbody>
-					%rows_c
+					%rowsc
 				</tbody>
 			</table>
 		</body>
 	</html>`
-	body = strings.ReplaceAll(body, "%rows_g", rows_g)
-	body = strings.ReplaceAll(body, "%rows_c", rows_c)
+	body = strings.ReplaceAll(body, "%rowsg", rowsg)
+	body = strings.ReplaceAll(body, "%rowsc", rowsc)
 	return body
 }
