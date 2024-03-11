@@ -3,6 +3,7 @@ package client
 import (
 	"flag"
 	"log"
+	"os"
 
 	"github.com/caarlos0/env/v6"
 )
@@ -11,7 +12,7 @@ var flagRunAddr string
 var flagReportInterval int
 var flagPollInterval int
 
-type Config struct {
+type config struct {
 	envRunAddr        string `env:"ADDRESS"`
 	envReportInterval int    `env:"REPORT_INTERVAL"`
 	envPollInterval   int    `env:"POLL_INTERVAL"`
@@ -34,7 +35,7 @@ func parseFlags() {
 
 	// для случаев, когда в переменных окружения присутствует непустое значение,
 	// переопределим их, даже если они были переданы через аргументы командной строки
-	var cfg Config
+	cfg := config{}
 	err := env.Parse(&cfg)
 	if err != nil {
 		log.Fatal(err)
@@ -42,6 +43,8 @@ func parseFlags() {
 
 	if cfg.envRunAddr != "" {
 		flagRunAddr = cfg.envRunAddr
+	} else if envRunAddr := os.Getenv("ADDRESS"); envRunAddr != "" {
+		flagRunAddr = envRunAddr
 	}
 	if cfg.envReportInterval != 0 {
 		flagReportInterval = cfg.envReportInterval
