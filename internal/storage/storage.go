@@ -1,11 +1,14 @@
 package storage
 
 import (
+	"fmt"
 	"strconv"
 )
 
 type Repository interface {
 	Add() error
+	GetValue() (string, error)
+	AllValuesHTML() string
 }
 
 type MemStorage struct {
@@ -35,6 +38,21 @@ func (metric GaugeMetric) Add() error {
 	return err
 }
 
+func (metric GaugeMetric) GetValue() (value string, err error) {
+	val, ok := storage.Gauges[metric.Name]
+	if ok {
+		value = strconv.FormatFloat(val, 'g', -1, 64)
+	}
+	return
+}
+
+func (metric GaugeMetric) AllValuesHTML() (rows string) {
+	for name, val := range storage.Gauges {
+		rows += fmt.Sprintf("<tr><th>%v</th><th>%v</th></tr>", name, val)
+	}
+	return
+}
+
 type CounterMetric struct {
 	Name  string
 	Value string
@@ -46,4 +64,19 @@ func (metric CounterMetric) Add() error {
 		storage.Counters[metric.Name] += val
 	}
 	return err
+}
+
+func (metric CounterMetric) GetValue() (value string, err error) {
+	val, ok := storage.Counters[metric.Name]
+	if ok {
+		value = strconv.FormatInt(val, 10)
+	}
+	return
+}
+
+func (metric CounterMetric) AllValuesHTML() (rows string) {
+	for name, val := range storage.Counters {
+		rows += fmt.Sprintf("<tr><th>%v</th><th>%v</th></tr>", name, val)
+	}
+	return
 }

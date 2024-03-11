@@ -1,8 +1,12 @@
 package handlers
 
 import (
+	"fmt"
 	"musthave-metrics/internal/storage"
 	"net/http"
+	"strings"
+
+	"github.com/go-chi/chi"
 )
 
 type Metric struct {
@@ -19,10 +23,30 @@ func (m Metric) Update(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (m Metric) GetValue(w http.ResponseWriter, r *http.Request) {
+	m.setValue(r)
+	val, err := m.getValue()
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(val))
+}
+
+func AllMetrics(w http.ResponseWriter, r *http.Request) {
+	body := allMetricsBody(
+		repo(Metric{metricType: "gauge"}).AllValuesHTML(),
+		repo(Metric{metricType: "counter"}).AllValuesHTML(),
+	)
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(body))
+}
+
 func (m *Metric) setValue(r *http.Request) {
-	m.metricType = r.PathValue("metricType")
-	m.metricName = r.PathValue("metricName")
-	m.metricValue = r.PathValue("metricValue")
+	m.metricType = chi.URLParam(r, "metricType")
+	m.metricName = chi.URLParam(r, "metricName")
+	m.metricValue = chi.URLParam(r, "metricValue")
 }
 
 func (m Metric) isValid() bool {
@@ -36,13 +60,59 @@ func (m Metric) isValid() bool {
 }
 
 func (m Metric) add() error {
-	var Repository storage.Repository
-	var err error
-	if m.metricType == "gauge" {
-		Repository = storage.GaugeMetric{Name: m.metricName, Value: m.metricValue}
-	} else if m.metricType == "counter" {
-		Repository = storage.CounterMetric{Name: m.metricName, Value: m.metricValue}
-	}
-	err = Repository.Add()
+	err := repo(m).Add()
 	return err
+}
+
+func (m Metric) getValue() (value string, err error) {
+	value, err = repo(m).GetValue()
+	if value == "" && err == nil {
+		err = fmt.Errorf("unknown metric")
+	}
+	return
+}
+
+func repo(m Metric) (repository storage.Repository) {
+	if m.metricType == "gauge" {
+		repository = storage.GaugeMetric{Name: m.metricName, Value: m.metricValue}
+	} else if m.metricType == "counter" {
+		repository = storage.CounterMetric{Name: m.metricName, Value: m.metricValue}
+	}
+	return
+}
+
+func allMetricsBody(rows_g string, rows_c string) string {
+	body :=
+		`<html>
+		<head>
+		<title></title>
+		</head>
+		<body>
+			<table border="1" cellpadding="1" cellspacing="1" style="width: 500px">
+				<thead>
+					<tr>
+						<th scope="col">Gauge metric</th>
+						<th scope="col">Value</th>
+					</tr>
+				</thead>
+				<tbody>
+					%rows_g
+				</tbody>
+			</table>
+			<table border="1" cellpadding="1" cellspacing="1" style="width: 500px">
+				<thead>
+					<tr>
+						<th scope="col">Counter metric</th>
+						<th scope="col">Value</th>
+					</tr>
+				</thead>
+				<tbody>
+					%rows_c
+				</tbody>
+			</table>
+		</body>
+	</html>`
+	body = strings.ReplaceAll(body, "%rows_g", rows_g)
+	body = strings.ReplaceAll(body, "%rows_c", rows_c)
+	return body
 }

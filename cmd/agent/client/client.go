@@ -46,7 +46,7 @@ func (localhost Localhost) UpdateMetrics(mtype string, mname string, mvalue stri
 	if err != nil {
 		panic(err)
 	}
-	io.Copy(os.Stdout, response.Body) // вывод ответа в консоль
+	io.Copy(os.Stdout, response.Body)
 	response.Body.Close()
 	return nil
 }
