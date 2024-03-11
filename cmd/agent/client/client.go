@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 )
 
 type ClientMetrics interface {
@@ -13,28 +14,31 @@ type ClientMetrics interface {
 }
 
 type Localhost struct {
-	host        string
-	port        string
-	method      string
-	contentType string
-}
-
-func defaultLocalhost() Localhost {
-	return Localhost{
-		"http://localhost",
-		":8080",
-		"/update/",
-		"text/plain",
-	}
+	RunAddr        string
+	method         string
+	contentType    string
+	PollInterval   int
+	ReportInterval int
 }
 
 func makeURL(localhost Localhost, mtype string, mname string, mvalue string) string {
-	return localhost.host + localhost.port + localhost.method + mtype + "/" + mname + "/" + fmt.Sprintf("%v", mvalue)
+	return "http://" + localhost.RunAddr + localhost.method + mtype + "/" + mname + "/" + fmt.Sprintf("%v", mvalue)
+}
+
+func (localhost *Localhost) Run() error {
+	var err error
+	parseFlags()
+	localhost.RunAddr = flagRunAddr
+	localhost.method = "/update/"
+	localhost.contentType = "text/plain"
+	localhost.ReportInterval = flagReportInterval
+	localhost.PollInterval = flagPollInterval
+	fmt.Printf("%s (!) Running server on %s, Report interval: %v, Poll interval: %v\n", time.Now().Format(time.DateTime), flagRunAddr, flagReportInterval, flagPollInterval)
+	return err
 }
 
 func (localhost Localhost) UpdateMetrics(mtype string, mname string, mvalue string) error {
 	client := &http.Client{}
-	localhost = defaultLocalhost()
 	url := makeURL(localhost, mtype, mname, mvalue)
 	var body []byte
 	request, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))

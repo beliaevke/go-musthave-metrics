@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"musthave-metrics/handlers"
 	"net/http"
 
@@ -8,6 +9,7 @@ import (
 )
 
 func main() {
+	parseFlags()
 	if err := run(); err != nil {
 		panic(err)
 	}
@@ -19,5 +21,6 @@ func run() error {
 	mux.HandleFunc("/update/{metricType}/{metricName}/{metricValue}", metric.Update)
 	mux.HandleFunc("/value/{metricType}/{metricName}", metric.GetValue)
 	mux.HandleFunc("/", handlers.AllMetrics)
-	return http.ListenAndServe(`:8080`, mux)
+	fmt.Println("Running server on ", flagRunAddr)
+	return http.ListenAndServe(flagRunAddr, mux)
 }

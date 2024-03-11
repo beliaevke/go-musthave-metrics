@@ -13,8 +13,7 @@ import (
 type agent struct {
 	CounterMetrics map[string]int64
 	GaugeMetrics   map[string]string
-	pollInterval   int
-	reportInterval int
+	client         client.Localhost
 }
 
 func (agent *agent) run() {
@@ -26,15 +25,15 @@ func (agent *agent) run() {
 	agent.printAgentLog("Stop")
 }
 
-func newAgent(pollInterval int, reportInterval int) (*agent, error) {
-	return &agent{
-		pollInterval:   pollInterval,
-		reportInterval: reportInterval,
-	}, nil
+func newAgent() (*agent, error) {
+	agent := &agent{
+		client: client.Localhost{},
+	}
+	return agent, agent.client.Run()
 }
 
 func main() {
-	agent, err := newAgent(2, 10)
+	agent, err := newAgent()
 	if err != nil {
 		panic(err)
 	}
@@ -52,7 +51,7 @@ func (agent *agent) pollMetrics() {
 		agent.pollMetrics()
 		agent.printMetricsLog("<= Read")
 	}
-	time.AfterFunc(time.Duration(agent.pollInterval)*time.Second, f)
+	time.AfterFunc(time.Duration(agent.client.PollInterval)*time.Second, f)
 }
 
 func (agent *agent) reportMetrics() {
@@ -61,17 +60,16 @@ func (agent *agent) reportMetrics() {
 		agent.reportMetrics()
 		agent.printMetricsLog("=> Push")
 	}
-	time.AfterFunc(time.Duration(agent.reportInterval)*time.Second, f)
+	time.AfterFunc(time.Duration(agent.client.ReportInterval)*time.Second, f)
 }
 
 func (agent *agent) pushMetrics() {
 	defer agent.printErrorLog()
-	lh := client.Localhost{}
 	for name, val := range agent.CounterMetrics {
-		lh.UpdateMetrics("counter", name, strconv.FormatInt(val, 10))
+		agent.client.UpdateMetrics("counter", name, strconv.FormatInt(val, 10))
 	}
 	for name, val := range agent.GaugeMetrics {
-		lh.UpdateMetrics("gauge", name, val)
+		agent.client.UpdateMetrics("gauge", name, val)
 	}
 }
 
