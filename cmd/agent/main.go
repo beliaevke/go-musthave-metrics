@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"musthave-metrics/cmd/agent/client"
+	"musthave-metrics/handlers"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -13,7 +14,7 @@ import (
 type agent struct {
 	CounterMetrics map[string]int64
 	GaugeMetrics   map[string]string
-	client         client.Localhost
+	client         client.Locallink
 }
 
 func (agent *agent) run() {
@@ -27,7 +28,7 @@ func (agent *agent) run() {
 
 func newAgent() (*agent, error) {
 	agent := &agent{
-		client: client.Localhost{},
+		client: client.Locallink{},
 	}
 	return agent, agent.client.Run()
 }
@@ -64,12 +65,13 @@ func (agent *agent) reportMetrics() {
 }
 
 func (agent *agent) pushMetrics() {
-	defer agent.printErrorLog()
+	var err error
+	defer agent.printErrorLog(err)
 	for name, val := range agent.CounterMetrics {
-		agent.client.UpdateMetrics("counter", name, strconv.FormatInt(val, 10))
+		handlers.UpdateMetrics(agent.client, "counter", name, strconv.FormatInt(val, 10))
 	}
 	for name, val := range agent.GaugeMetrics {
-		agent.client.UpdateMetrics("gauge", name, val)
+		handlers.UpdateMetrics(agent.client, "gauge", name, val)
 	}
 }
 
@@ -85,7 +87,6 @@ func (agent *agent) setMetrics() {
 }
 
 func setGaugeMemStatsMetrics(s interface{}, agent *agent) {
-	defer agent.printErrorLog()
 	valOf := reflect.ValueOf(s)
 	typOf := reflect.TypeOf(s)
 	for i := 0; i < valOf.NumField(); i++ {
@@ -114,14 +115,13 @@ func (agent *agent) printAgentLog(operation string) {
 	)
 }
 
-func (agent *agent) printErrorLog() {
+func (agent *agent) printErrorLog(error) {
 	if err := recover(); err != nil {
 		fmt.Printf(
 			"%s xxx Error: %s \n",
 			time.Now().Format(time.DateTime),
 			err,
 		)
-		panic(err)
 	}
 }
 

@@ -1,10 +1,15 @@
 package handlers
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"musthave-metrics/cmd/agent/client"
+	"musthave-metrics/internal/service"
 	"musthave-metrics/internal/storage"
 	"net/http"
-	"strings"
+	"os"
+	"text/template"
 
 	"github.com/go-chi/chi"
 )
@@ -15,7 +20,13 @@ type Metric struct {
 	metricValue string
 }
 
-func (m Metric) Update(w http.ResponseWriter, r *http.Request) {
+type metricsContent struct {
+	Rowsg string
+	Rowsc string
+}
+
+func Update(w http.ResponseWriter, r *http.Request) {
+	m := Metric{}
 	w.Header().Set("Content-Type", "text/plain")
 	m.setValue(r)
 	if !m.isValid() || m.add() != nil {
@@ -23,7 +34,8 @@ func (m Metric) Update(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (m Metric) GetValue(w http.ResponseWriter, r *http.Request) {
+func GetValue(w http.ResponseWriter, r *http.Request) {
+	m := Metric{}
 	m.setValue(r)
 	val, err := m.getValue()
 	if err != nil {
@@ -35,12 +47,17 @@ func (m Metric) GetValue(w http.ResponseWriter, r *http.Request) {
 }
 
 func AllMetrics(w http.ResponseWriter, r *http.Request) {
-	body := allMetricsBody(
-		repo(Metric{metricType: "gauge"}).AllValuesHTML(),
-		repo(Metric{metricType: "counter"}).AllValuesHTML(),
-	)
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(body))
+	content := metricsContent{
+		Rowsg: repo(Metric{metricType: "gauge"}).AllValuesHTML(),
+		Rowsc: repo(Metric{metricType: "counter"}).AllValuesHTML(),
+	}
+	body, err := template.New("temp").Parse(metricstemplate())
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	} else {
+		w.WriteHeader(http.StatusOK)
+		body.Execute(w, content)
+	}
 }
 
 func (m *Metric) setValue(r *http.Request) {
@@ -64,12 +81,12 @@ func (m Metric) add() error {
 	return err
 }
 
-func (m Metric) getValue() (value string, err error) {
-	value, err = repo(m).GetValue()
+func (m Metric) getValue() (string, error) {
+	value, err := repo(m).GetValue()
 	if value == "" && err == nil {
 		err = fmt.Errorf("unknown metric")
 	}
-	return
+	return value, err
 }
 
 func repo(m Metric) (repository storage.Repository) {
@@ -78,41 +95,55 @@ func repo(m Metric) (repository storage.Repository) {
 	} else if m.metricType == "counter" {
 		repository = storage.CounterMetric{Name: m.metricName, Value: m.metricValue}
 	}
-	return
+	return repository
 }
 
-func allMetricsBody(rowsg string, rowsc string) string {
-	body :=
-		`<html>
-		<head>
-		<title></title>
-		</head>
-		<body>
-			<table border="1" cellpadding="1" cellspacing="1" style="width: 500px">
-				<thead>
-					<tr>
-						<th scope="col">Gauge metric</th>
-						<th scope="col">Value</th>
-					</tr>
-				</thead>
-				<tbody>
-					%rowsg
-				</tbody>
-			</table>
-			<table border="1" cellpadding="1" cellspacing="1" style="width: 500px">
-				<thead>
-					<tr>
-						<th scope="col">Counter metric</th>
-						<th scope="col">Value</th>
-					</tr>
-				</thead>
-				<tbody>
-					%rowsc
-				</tbody>
-			</table>
-		</body>
-	</html>`
-	body = strings.ReplaceAll(body, "%rowsg", rowsg)
-	body = strings.ReplaceAll(body, "%rowsc", rowsc)
-	return body
+func UpdateMetrics(locallink client.Locallink, mtype string, mname string, mvalue string) error {
+	client := &http.Client{}
+	url := service.MakeURL(locallink.RunAddr, locallink.Method, mtype, mname, mvalue)
+	var body []byte
+	request, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", locallink.ContentType)
+	response, err := client.Do(request)
+	if err != nil {
+		return err
+	}
+	io.Copy(os.Stdout, response.Body)
+	response.Body.Close()
+	return nil
+}
+
+func metricstemplate() string {
+	return `<html>
+	<head>
+	<title></title>
+	</head>
+	<body>
+		<table border="1" cellpadding="1" cellspacing="1" style="width: 500px">
+			<thead>
+				<tr>
+					<th scope="col">Gauge metric</th>
+					<th scope="col">Value</th>
+				</tr>
+			</thead>
+			<tbody>
+				{{ .Rowsg }}
+			</tbody>
+		</table>
+		<table border="1" cellpadding="1" cellspacing="1" style="width: 500px">
+			<thead>
+				<tr>
+					<th scope="col">Counter metric</th>
+					<th scope="col">Value</th>
+				</tr>
+			</thead>
+			<tbody>
+				{{ .Rowsc }}
+			</tbody>
+		</table>
+	</body>
+</html>`
 }
