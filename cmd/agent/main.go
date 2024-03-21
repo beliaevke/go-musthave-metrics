@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"musthave-metrics/cmd/agent/client"
 	"musthave-metrics/handlers"
@@ -36,7 +37,7 @@ func newAgent() (*agent, error) {
 func main() {
 	agent, err := newAgent()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 	agent.run()
 }
@@ -66,12 +67,14 @@ func (agent *agent) reportMetrics() {
 
 func (agent *agent) pushMetrics() {
 	var err error
-	defer agent.printErrorLog(err)
 	for name, val := range agent.CounterMetrics {
-		handlers.UpdateMetrics(agent.client, "counter", name, strconv.FormatInt(val, 10))
+		err = handlers.UpdateMetrics(agent.client, "counter", name, strconv.FormatInt(val, 10))
 	}
 	for name, val := range agent.GaugeMetrics {
-		handlers.UpdateMetrics(agent.client, "gauge", name, val)
+		err = handlers.UpdateMetrics(agent.client, "gauge", name, val)
+	}
+	if err != nil {
+		agent.printErrorLog(err)
 	}
 }
 

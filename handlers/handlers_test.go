@@ -101,13 +101,19 @@ func TestUpdate(t *testing.T) {
 
 			r1 := chi.NewRouter()
 			r1.Handle(tc.pattern, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Write([]byte(tc.expectedBody))
+				_, err := w.Write([]byte(tc.expectedBody))
+				if err != nil {
+					t.Errorf("Write failed: %v", err)
+				}
 			}))
 
 			// Test that HandleFunc also handles method patterns
 			r2 := chi.NewRouter()
 			r2.HandleFunc(tc.pattern, func(w http.ResponseWriter, r *http.Request) {
-				w.Write([]byte(tc.expectedBody))
+				_, err := w.Write([]byte(tc.expectedBody))
+				if err != nil {
+					t.Errorf("Write failed: %v", err)
+				}
 			})
 
 			if !tc.shouldPanic {

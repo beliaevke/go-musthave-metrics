@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"musthave-metrics/cmd/agent/client"
 	"musthave-metrics/internal/service"
 	"musthave-metrics/internal/storage"
@@ -43,7 +44,10 @@ func GetValue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(val))
+	_, err = w.Write([]byte(val))
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func AllMetrics(w http.ResponseWriter, r *http.Request) {
@@ -56,7 +60,10 @@ func AllMetrics(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
 		w.WriteHeader(http.StatusOK)
-		body.Execute(w, content)
+		err = body.Execute(w, content)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 	}
 }
 
@@ -111,8 +118,11 @@ func UpdateMetrics(locallink client.Locallink, mtype string, mname string, mvalu
 	if err != nil {
 		return err
 	}
-	io.Copy(os.Stdout, response.Body)
 	response.Body.Close()
+	_, err = io.Copy(os.Stdout, response.Body)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

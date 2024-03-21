@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"musthave-metrics/handlers"
 	"net/http"
 
@@ -11,7 +12,7 @@ import (
 func main() {
 	parseFlags()
 	if err := run(); err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 }
 
