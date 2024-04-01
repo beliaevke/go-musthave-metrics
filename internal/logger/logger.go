@@ -46,7 +46,7 @@ func WithLogging(h http.Handler) http.Handler {
 			// вызываем панику, если ошибка
 			log.Fatal(err)
 		}
-		defer logger.Sync() //nolint:lint
+		defer logger.Sync() //nolint
 
 		// делаем регистратор SugaredLogger
 		sugar := *logger.Sugar()
@@ -94,7 +94,7 @@ func ServerRunningInfo(RunAddr string) {
 	}
 	// это нужно добавить, если логер буферизован
 	// в данном случае не буферизован, но привычка хорошая
-	defer logger.Sync() //nolint:lint
+	defer logger.Sync() //nolint
 
 	// делаем логер SugaredLogger
 	sugar := logger.Sugar()
