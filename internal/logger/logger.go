@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"log"
 	"net/http"
 	"time"
 
@@ -43,9 +44,9 @@ func WithLogging(h http.Handler) http.Handler {
 		logger, err := zap.NewDevelopment()
 		if err != nil {
 			// вызываем панику, если ошибка
-			panic(err)
+			log.Fatal(err)
 		}
-		defer logger.Sync()
+		defer logger.Sync() //nolint:lint
 
 		// делаем регистратор SugaredLogger
 		sugar := *logger.Sugar()
@@ -89,11 +90,11 @@ func ServerRunningInfo(RunAddr string) {
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		// вызываем панику, если ошибка
-		panic("cannot initialize zap")
+		log.Fatal(err)
 	}
 	// это нужно добавить, если логер буферизован
 	// в данном случае не буферизован, но привычка хорошая
-	defer logger.Sync()
+	defer logger.Sync() //nolint:lint
 
 	// делаем логер SugaredLogger
 	sugar := logger.Sugar()
