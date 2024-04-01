@@ -26,45 +26,56 @@ type metricsContent struct {
 	Rowsc string
 }
 
-func Update(w http.ResponseWriter, r *http.Request) {
-	m := Metric{}
-	w.Header().Set("Content-Type", "text/plain")
-	m.setValue(r)
-	if !m.isValid() || m.add() != nil {
-		w.WriteHeader(http.StatusBadRequest)
-	}
-}
-
-func GetValue(w http.ResponseWriter, r *http.Request) {
-	m := Metric{}
-	m.setValue(r)
-	val, err := m.getValue()
-	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-	_, err = w.Write([]byte(val))
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-func AllMetrics(w http.ResponseWriter, r *http.Request) {
-	content := metricsContent{
-		Rowsg: repo(Metric{metricType: "gauge"}).AllValuesHTML(),
-		Rowsc: repo(Metric{metricType: "counter"}).AllValuesHTML(),
-	}
-	body, err := template.New("temp").Parse(metricstemplate())
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-	} else {
-		w.WriteHeader(http.StatusOK)
-		err = body.Execute(w, content)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
+func UpdateHandler() http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		m := Metric{}
+		w.Header().Set("Content-Type", "text/plain")
+		m.setValue(r)
+		if !m.isValid() || m.add() != nil {
+			w.WriteHeader(http.StatusBadRequest)
+		} else {
+			w.WriteHeader(http.StatusOK)
 		}
 	}
+	return http.HandlerFunc(fn)
+}
+
+func GetValueHandler() http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		m := Metric{}
+		m.setValue(r)
+		val, err := m.getValue()
+		if err != nil {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, err = w.Write([]byte(val))
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	return http.HandlerFunc(fn)
+}
+
+func AllMetricsHandler() http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		content := metricsContent{
+			Rowsg: repo(Metric{metricType: "gauge"}).AllValuesHTML(),
+			Rowsc: repo(Metric{metricType: "counter"}).AllValuesHTML(),
+		}
+		body, err := template.New("temp").Parse(metricstemplate())
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			w.WriteHeader(http.StatusOK)
+			err = body.Execute(w, content)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+		}
+	}
+	return http.HandlerFunc(fn)
 }
 
 func (m *Metric) setValue(r *http.Request) {
