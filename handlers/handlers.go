@@ -125,6 +125,9 @@ func GetValueJSONHandler() http.Handler {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+			if val == "" {
+				val = "0"
+			}
 			if metric.MType == "gauge" {
 				gaugeValue, err := strconv.ParseFloat(val, 64)
 				if err != nil {
@@ -150,8 +153,13 @@ func GetValueJSONHandler() http.Handler {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			w.WriteHeader(http.StatusOK)
-			w.Write(resp)
+			_, err = w.Write(resp)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			} else {
+				w.WriteHeader(http.StatusOK)
+			}
 		}
 	}
 	return http.HandlerFunc(fn)

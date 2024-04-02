@@ -39,7 +39,6 @@ func (metric GaugeMetric) Add() error {
 }
 
 func (metric GaugeMetric) GetValue() (value string, err error) {
-	value = "0"
 	val, ok := storage.Gauges[metric.Name]
 	if ok {
 		value = strconv.FormatFloat(val, 'g', -1, 64)
@@ -68,7 +67,6 @@ func (metric CounterMetric) Add() error {
 }
 
 func (metric CounterMetric) GetValue() (value string, err error) {
-	value = "0"
 	val, ok := storage.Counters[metric.Name]
 	if ok {
 		value = strconv.FormatInt(val, 10)
