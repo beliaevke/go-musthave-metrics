@@ -121,8 +121,8 @@ func GetValueJSONHandler() http.Handler {
 				return
 			}
 			val, err := repo(metric.ID, metric.MType, "").GetValue()
-			if val == "" && err == nil {
-				w.WriteHeader(http.StatusNotFound)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			if metric.MType == "gauge" {
