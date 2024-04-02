@@ -17,12 +17,14 @@ func main() {
 	if err := run(cfg); err != nil {
 		log.Fatal(err)
 	}
-	if cfg.FlagRestore {
-		handlers.RestoreMetrics(cfg.FlagFileStoragePath)
-	}
-	if cfg.FlagStoreInterval != 0 {
-		storeMetrics(cfg)
-	}
+	/*
+		if cfg.FlagRestore {
+			handlers.RestoreMetrics(cfg.FlagFileStoragePath)
+		}
+		if cfg.FlagStoreInterval != 0 {
+			storeMetrics(cfg)
+		}
+	*/
 
 }
 
