@@ -7,11 +7,12 @@ import (
 )
 
 type Locallink struct {
-	RunAddr        string
-	Method         string
-	ContentType    string
-	PollInterval   int
-	ReportInterval int
+	RunAddr         string
+	Method          string
+	ContentType     string
+	ContentEncoding string
+	PollInterval    int
+	ReportInterval  int
 }
 
 func (locallink *Locallink) Run() error {
@@ -20,6 +21,7 @@ func (locallink *Locallink) Run() error {
 	locallink.RunAddr = cfg.FlagRunAddr
 	locallink.Method = "/update/"
 	locallink.ContentType = "text/plain"
+	locallink.ContentEncoding = "gzip"
 	locallink.ReportInterval = cfg.FlagReportInterval
 	locallink.PollInterval = cfg.FlagPollInterval
 	fmt.Printf("%s (!) Running server on %s, Report interval: %v, Poll interval: %v\n", time.Now().Format(time.DateTime), cfg.FlagRunAddr, cfg.FlagReportInterval, cfg.FlagPollInterval)

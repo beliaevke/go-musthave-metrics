@@ -186,6 +186,7 @@ func AllMetricsHandler() http.Handler {
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
+			w.Header().Set("Content-Type", "text/html")
 			w.WriteHeader(http.StatusOK)
 			err = body.Execute(w, content)
 			if err != nil {
