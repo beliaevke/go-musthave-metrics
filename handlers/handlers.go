@@ -78,7 +78,18 @@ func UpdateJSONHandler() http.Handler {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			} else {
-				w.WriteHeader(http.StatusOK)
+				resp, err := json.Marshal(metric)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				_, err = w.Write(resp)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				} else {
+					w.WriteHeader(http.StatusOK)
+				}
 			}
 		}
 	}
