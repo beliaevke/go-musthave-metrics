@@ -13,9 +13,9 @@ type ServerFlags struct {
 	FlagStoreInterval   int
 	FlagFileStoragePath string
 	FlagRestore         bool
-	envStoreInterval    int    `env:"STORE_INTERVAL"`
-	envFileStoragePath  string `env:"FILE_STORAGE_PATH"`
-	envRestore          bool   `env:"RESTORE"`
+	EnvStoreInterval    int    `env:"STORE_INTERVAL"`
+	EnvFileStoragePath  string `env:"FILE_STORAGE_PATH"`
+	EnvRestore          bool   `env:"RESTORE"`
 }
 
 // parseFlags обрабатывает аргументы командной строки
@@ -50,14 +50,14 @@ func ParseFlags() ServerFlags {
 	if envRunAddr := os.Getenv("ADDRESS"); envRunAddr != "" {
 		cfg.FlagRunAddr = envRunAddr
 	}
-	if cfg.envStoreInterval != 0 {
-		cfg.FlagStoreInterval = cfg.envStoreInterval
+	if cfg.EnvStoreInterval != 0 {
+		cfg.FlagStoreInterval = cfg.EnvStoreInterval
 	}
-	if cfg.envFileStoragePath != "" {
-		cfg.FlagFileStoragePath = cfg.envFileStoragePath
+	if cfg.EnvFileStoragePath != "" {
+		cfg.FlagFileStoragePath = cfg.EnvFileStoragePath
 	}
 	if _, isSet := os.LookupEnv("RESTORE"); !isSet {
-		cfg.FlagRestore = cfg.envRestore
+		cfg.FlagRestore = cfg.EnvRestore
 	}
 	return cfg
 }
