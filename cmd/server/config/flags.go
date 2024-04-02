@@ -23,8 +23,8 @@ type ServerFlags struct {
 func ParseFlags() ServerFlags {
 	// для случаев, когда в переменных окружения присутствует непустое значение,
 	// переопределим их, даже если они были переданы через аргументы командной строки
-	cfg := new(ServerFlags)
-	err := env.Parse(cfg)
+	cfg := ServerFlags{}
+	err := env.Parse(&cfg)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -59,5 +59,5 @@ func ParseFlags() ServerFlags {
 	if _, isSet := os.LookupEnv("RESTORE"); !isSet {
 		cfg.FlagRestore = cfg.envRestore
 	}
-	return *cfg
+	return cfg
 }
