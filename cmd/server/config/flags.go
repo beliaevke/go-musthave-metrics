@@ -14,7 +14,7 @@ type ServerFlags struct {
 	FlagFileStoragePath string
 	FlagRestore         bool
 	EnvStoreInterval    int    `env:"STORE_INTERVAL"`
-	EnvFileStoragePath  string `env:"FILE_STORAGE_PATH"`
+	FileStoragePath     string `env:"FILE_STORAGE_PATH"`
 	EnvRestore          bool   `env:"RESTORE"`
 }
 
@@ -23,9 +23,8 @@ type ServerFlags struct {
 func ParseFlags() ServerFlags {
 	// для случаев, когда в переменных окружения присутствует непустое значение,
 	// переопределим их, даже если они были переданы через аргументы командной строки
-	cfg := ServerFlags{}
-	err := env.Parse(&cfg)
-	if err != nil {
+	cfg := new(ServerFlags)
+	if err := env.Parse(cfg); err != nil {
 		log.Fatal(err)
 	}
 	// регистрируем переменную flagRunAddr
@@ -34,13 +33,13 @@ func ParseFlags() ServerFlags {
 	// регистрируем переменную FlagStoreInterval
 	// интервал времени в секундах, по истечении которого текущие показания сервера сохраняются на диск
 	// (по умолчанию 300 секунд, значение 0 делает запись синхронной)
-	flag.IntVar(&cfg.FlagStoreInterval, "i", 300, "report interval")
+	flag.IntVar(&cfg.FlagStoreInterval, "i", 300, "store interval")
 	// регистрируем переменную FlagFileStoragePath
 	// полное имя файла, куда сохраняются текущие значения (по умолчанию /tmp/metrics-db.json, пустое значение отключает функцию записи на диск)
-	flag.StringVar(&cfg.FlagFileStoragePath, "f", "/tmp/metrics-db.json", "report interval")
+	flag.StringVar(&cfg.FlagFileStoragePath, "f", "/tmp/metrics-db.json", "file storage path")
 	// регистрируем переменную FlagRestore
 	// булево значение (true/false), определяющее, загружать или нет ранее сохранённые значения из указанного файла при старте сервера (по умолчанию true).
-	flag.BoolVar(&cfg.FlagRestore, "r", true, "report interval")
+	flag.BoolVar(&cfg.FlagRestore, "r", true, "flag restore")
 	// парсим переданные серверу аргументы в зарегистрированные переменные
 	flag.Parse()
 
@@ -53,11 +52,11 @@ func ParseFlags() ServerFlags {
 	if cfg.EnvStoreInterval != 0 {
 		cfg.FlagStoreInterval = cfg.EnvStoreInterval
 	}
-	if cfg.EnvFileStoragePath != "" {
-		cfg.FlagFileStoragePath = cfg.EnvFileStoragePath
+	if cfg.FileStoragePath != "" {
+		cfg.FlagFileStoragePath = cfg.FileStoragePath
 	}
-	if _, isSet := os.LookupEnv("RESTORE"); !isSet {
+	if cfg.EnvRestore {
 		cfg.FlagRestore = cfg.EnvRestore
 	}
-	return cfg
+	return *cfg
 }

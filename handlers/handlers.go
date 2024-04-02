@@ -336,7 +336,10 @@ func StoreMetrics(fileStoragePath string) {
 		logger.Warnf("Write file error: " + err.Error())
 	}
 	// сохраняем данные в файл
-	os.WriteFile(fileStoragePath, data, 0666)
+	err = os.WriteFile(fileStoragePath, data, 0666)
+	if err != nil {
+		logger.Warnf("Write file error: " + err.Error())
+	}
 }
 
 func storeMetric(m MetricsJSON, fileStoragePath string) {
@@ -345,7 +348,10 @@ func storeMetric(m MetricsJSON, fileStoragePath string) {
 		logger.Warnf("Write file error: " + err.Error())
 	}
 	// сохраняем данные в файл
-	os.WriteFile(fileStoragePath, metric, 0666)
+	err = os.WriteFile(fileStoragePath, metric, 0666)
+	if err != nil {
+		logger.Warnf("Write file error: " + err.Error())
+	}
 }
 
 func allMetricsJSON() []MetricsJSON {

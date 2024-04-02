@@ -14,14 +14,14 @@ import (
 
 func main() {
 	cfg := config.ParseFlags()
-	if err := run(cfg); err != nil {
-		log.Fatal(err)
-	}
 	if cfg.FlagRestore {
 		handlers.RestoreMetrics(cfg.FlagFileStoragePath)
 	}
 	if cfg.FlagStoreInterval != 0 {
 		storeMetrics(cfg)
+	}
+	if err := run(cfg); err != nil {
+		log.Fatal(err)
 	}
 }
 
@@ -40,6 +40,7 @@ func run(cfg config.ServerFlags) error {
 func storeMetrics(cfg config.ServerFlags) {
 	f := func() {
 		handlers.StoreMetrics(cfg.FlagFileStoragePath)
+		storeMetrics(cfg)
 	}
 	time.AfterFunc(time.Duration(cfg.FlagStoreInterval)*time.Second, f)
 }
