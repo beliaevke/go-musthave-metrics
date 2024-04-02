@@ -8,6 +8,7 @@ import (
 type Repository interface {
 	Add() error
 	GetValue() (string, error)
+	GetValues() MemStorage
 	AllValuesHTML() string
 }
 
@@ -46,6 +47,14 @@ func (metric GaugeMetric) GetValue() (value string, err error) {
 	return
 }
 
+func (metric GaugeMetric) GetValues() MemStorage {
+	g := make(map[string]float64, len(storage.Gauges))
+	for name, val := range storage.Gauges {
+		g[name] = val
+	}
+	return MemStorage{Gauges: g}
+}
+
 func (metric GaugeMetric) AllValuesHTML() (rows string) {
 	for name, val := range storage.Gauges {
 		rows += fmt.Sprintf("<tr><th>%v</th><th>%v</th></tr>", name, val)
@@ -72,6 +81,14 @@ func (metric CounterMetric) GetValue() (value string, err error) {
 		value = strconv.FormatInt(val, 10)
 	}
 	return
+}
+
+func (metric CounterMetric) GetValues() MemStorage {
+	c := make(map[string]int64, len(storage.Counters))
+	for name, val := range storage.Counters {
+		c[name] = val
+	}
+	return MemStorage{Counters: c}
 }
 
 func (metric CounterMetric) AllValuesHTML() (rows string) {

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"musthave-metrics/cmd/agent/client"
+	"musthave-metrics/internal/logger"
 	"musthave-metrics/internal/service"
 	"musthave-metrics/internal/storage"
 	"net/http"
@@ -49,7 +50,7 @@ func UpdateHandler() http.Handler {
 	return http.HandlerFunc(fn)
 }
 
-func UpdateJSONHandler() http.Handler {
+func UpdateJSONHandler(storeInterval int, fileStoragePath string) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method == http.MethodPost {
@@ -89,6 +90,9 @@ func UpdateJSONHandler() http.Handler {
 					return
 				} else {
 					w.WriteHeader(http.StatusOK)
+					if storeInterval == 0 {
+						storeMetric(metric, fileStoragePath)
+					}
 				}
 			}
 		}
@@ -286,4 +290,73 @@ func metricstemplate() string {
 		</table>
 	</body>
 </html>`
+}
+
+func RestoreMetrics(fileStoragePath string) {
+	m, err := readFile(fileStoragePath)
+	if err != nil {
+		logger.Warnf("Read file error: " + err.Error())
+	}
+	for i, v := range m {
+		restoreMetric(v, i)
+	}
+}
+
+func readFile(fileStoragePath string) ([]MetricsJSON, error) {
+	data, err := os.ReadFile(fileStoragePath)
+	if err != nil {
+		return nil, err
+	}
+	m := make([]MetricsJSON, 0)
+	reader := bytes.NewReader(data)
+	if err := json.NewDecoder(reader).Decode(&m); err != nil {
+		logger.Warnf("Read metric from file error: " + err.Error())
+		return nil, err
+	}
+	return m, nil
+}
+
+func restoreMetric(metric MetricsJSON, line int) {
+	var err error
+	if metric.MType == "gauge" {
+		err = repo(metric.ID, metric.MType, strconv.FormatFloat(*metric.Value, 'g', -1, 64)).Add()
+	} else if metric.MType == "counter" {
+		err = repo(metric.ID, metric.MType, strconv.FormatInt(*metric.Delta, 10)).Add()
+	} else {
+		logger.Warnf("Read file error: unknown metric type - " + metric.MType + ", line: " + strconv.Itoa(line))
+	}
+	if err != nil {
+		logger.Warnf("Read file error: " + err.Error() + ", line: " + strconv.Itoa(line))
+	}
+}
+
+func StoreMetrics(fileStoragePath string) {
+	data, err := json.MarshalIndent(allMetricsJSON(), "", "   ")
+	if err != nil {
+		logger.Warnf("Write file error: " + err.Error())
+	}
+	// сохраняем данные в файл
+	os.WriteFile(fileStoragePath, data, 0666)
+}
+
+func storeMetric(m MetricsJSON, fileStoragePath string) {
+	metric, err := json.MarshalIndent(m, "", "   ")
+	if err != nil {
+		logger.Warnf("Write file error: " + err.Error())
+	}
+	// сохраняем данные в файл
+	os.WriteFile(fileStoragePath, metric, 0666)
+}
+
+func allMetricsJSON() []MetricsJSON {
+	var metrics []MetricsJSON
+	storGauges := repo("", "gauge", "").GetValues().Gauges
+	for name, val := range storGauges {
+		metrics = append(metrics, MetricsJSON{ID: name, MType: "gauge", Value: &val})
+	}
+	storCounters := repo("", "counter", "").GetValues().Counters
+	for name, del := range storCounters {
+		metrics = append(metrics, MetricsJSON{ID: name, MType: "counter", Delta: &del})
+	}
+	return metrics
 }

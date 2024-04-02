@@ -102,3 +102,21 @@ func ServerRunningInfo(RunAddr string) {
 	// выводим сообщение уровня Info, но со строкой URL, это тоже SugaredLogger
 	sugar.Infof("Running server on %s", RunAddr)
 }
+
+func Warnf(s string) {
+	// добавляем предустановленный логер NewDevelopment
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		// вызываем панику, если ошибка
+		log.Fatal(err)
+	}
+	// это нужно добавить, если логер буферизован
+	// в данном случае не буферизован, но привычка хорошая
+	defer logger.Sync() //nolint
+
+	// делаем логер SugaredLogger
+	sugar := logger.Sugar()
+
+	// выводим сообщение уровня Info, но со строкой URL, это тоже SugaredLogger
+	sugar.Warnf("Running server on %s", s)
+}
