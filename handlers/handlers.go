@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -10,6 +11,7 @@ import (
 	"musthave-metrics/internal/storage"
 	"net/http"
 	"os"
+	"strconv"
 	"text/template"
 
 	"github.com/go-chi/chi"
@@ -19,6 +21,13 @@ type Metric struct {
 	metricType  string
 	metricName  string
 	metricValue string
+}
+
+type MetricsJSON struct {
+	ID    string   `json:"id"`              // имя метрики
+	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
+	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
+	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
 }
 
 type metricsContent struct {
@@ -35,6 +44,42 @@ func UpdateHandler() http.Handler {
 			w.WriteHeader(http.StatusBadRequest)
 		} else {
 			w.WriteHeader(http.StatusOK)
+		}
+	}
+	return http.HandlerFunc(fn)
+}
+
+func UpdateJSONHandler() http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost {
+			var metric MetricsJSON
+			var buf bytes.Buffer
+			// читаем тело запроса
+			_, err := buf.ReadFrom(r.Body)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			// десериализуем JSON в Visitor
+			if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			if metric.MType == "gauge" {
+				err = repo(metric.ID, metric.MType, strconv.FormatFloat(*metric.Value, 'g', -1, 64)).Add()
+			} else if metric.MType == "counter" {
+				err = repo(metric.ID, metric.MType, strconv.FormatInt(*metric.Delta, 10)).Add()
+			} else {
+				http.Error(w, "unknown metric type", http.StatusInternalServerError)
+				return
+			}
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			} else {
+				w.WriteHeader(http.StatusOK)
+			}
 		}
 	}
 	return http.HandlerFunc(fn)
@@ -58,11 +103,65 @@ func GetValueHandler() http.Handler {
 	return http.HandlerFunc(fn)
 }
 
+func GetValueJSONHandler() http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost {
+			var metric MetricsJSON
+			var buf bytes.Buffer
+			// читаем тело запроса
+			_, err := buf.ReadFrom(r.Body)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			// десериализуем JSON в Visitor
+			if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			val, err := repo(metric.ID, metric.MType, "").GetValue()
+			if val == "" && err == nil {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			if metric.MType == "gauge" {
+				gaugeValue, err := strconv.ParseFloat(val, 64)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				} else {
+					metric.Value = &gaugeValue
+				}
+			} else if metric.MType == "counter" {
+				counterValue, err := strconv.ParseInt(val, 10, 64)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				} else {
+					metric.Delta = &counterValue
+				}
+			} else {
+				http.Error(w, "unknown metric type", http.StatusInternalServerError)
+				return
+			}
+			resp, err := json.Marshal(metric)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			w.Write(resp)
+		}
+	}
+	return http.HandlerFunc(fn)
+}
+
 func AllMetricsHandler() http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		content := metricsContent{
-			Rowsg: repo(Metric{metricType: "gauge"}).AllValuesHTML(),
-			Rowsc: repo(Metric{metricType: "counter"}).AllValuesHTML(),
+			Rowsg: repo("", "gauge", "").AllValuesHTML(),
+			Rowsc: repo("", "counter", "").AllValuesHTML(),
 		}
 		body, err := template.New("temp").Parse(metricstemplate())
 		if err != nil {
@@ -95,23 +194,23 @@ func (m Metric) isValid() bool {
 }
 
 func (m Metric) add() error {
-	err := repo(m).Add()
+	err := repo(m.metricName, m.metricType, m.metricValue).Add()
 	return err
 }
 
 func (m Metric) getValue() (string, error) {
-	value, err := repo(m).GetValue()
+	value, err := repo(m.metricName, m.metricType, m.metricValue).GetValue()
 	if value == "" && err == nil {
 		err = fmt.Errorf("unknown metric")
 	}
 	return value, err
 }
 
-func repo(m Metric) (repository storage.Repository) {
-	if m.metricType == "gauge" {
-		repository = storage.GaugeMetric{Name: m.metricName, Value: m.metricValue}
-	} else if m.metricType == "counter" {
-		repository = storage.CounterMetric{Name: m.metricName, Value: m.metricValue}
+func repo(metricName string, metricType string, metricValue string) (repository storage.Repository) {
+	if metricType == "gauge" {
+		repository = storage.GaugeMetric{Name: metricName, Value: metricValue}
+	} else if metricType == "counter" {
+		repository = storage.CounterMetric{Name: metricName, Value: metricValue}
 	}
 	return repository
 }
