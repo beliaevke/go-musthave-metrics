@@ -202,7 +202,6 @@ func AllMetricsHandler() http.Handler {
 func PingDBHandler(DatabaseDSN string) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		settings := postgres.NewPSQLStr(DatabaseDSN)
-
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		err := settings.Ping(ctx)

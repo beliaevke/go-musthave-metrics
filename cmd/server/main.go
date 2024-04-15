@@ -33,7 +33,7 @@ func run(cfg config.ServerFlags) error {
 	mux.Handle("/update/", handlers.UpdateJSONHandler(cfg.FlagStoreInterval, cfg.FlagFileStoragePath))
 	mux.Handle("/value/{metricType}/{metricName}", handlers.GetValueHandler())
 	mux.Handle("/value/", handlers.GetValueJSONHandler())
-	mux.Handle("/ping/", handlers.PingDBHandler(cfg.FlagDatabaseDSN))
+	mux.Handle("/ping", handlers.PingDBHandler(cfg.FlagDatabaseDSN))
 	mux.Handle("/", handlers.AllMetricsHandler())
 	return http.ListenAndServe(cfg.FlagRunAddr, mux)
 }
