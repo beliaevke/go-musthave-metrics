@@ -2,18 +2,21 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"musthave-metrics/cmd/agent/client"
 	"musthave-metrics/internal/logger"
+	"musthave-metrics/internal/postgres"
 	"musthave-metrics/internal/service"
 	"musthave-metrics/internal/storage"
 	"net/http"
 	"os"
 	"strconv"
 	"text/template"
+	"time"
 
 	"github.com/go-chi/chi"
 )
@@ -78,22 +81,20 @@ func UpdateJSONHandler(storeInterval int, fileStoragePath string) http.Handler {
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
-			} else {
-				resp, err := json.Marshal(metric)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-				_, err = w.Write(resp)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				} else {
-					w.WriteHeader(http.StatusOK)
-					if storeInterval == 0 {
-						storeMetric(metric, fileStoragePath)
-					}
-				}
+			}
+			resp, err := json.Marshal(metric)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			_, err = w.Write(resp)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			if storeInterval == 0 {
+				storeMetric(metric, fileStoragePath)
 			}
 		}
 	}
@@ -148,17 +149,15 @@ func GetValueJSONHandler() http.Handler {
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
-				} else {
-					metric.Value = &gaugeValue
 				}
+				metric.Value = &gaugeValue
 			} else if metric.MType == "counter" {
 				counterValue, err := strconv.ParseInt(val, 10, 64)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
-				} else {
-					metric.Delta = &counterValue
 				}
+				metric.Delta = &counterValue
 			} else {
 				http.Error(w, "unknown metric type", http.StatusInternalServerError)
 				return
@@ -172,9 +171,8 @@ func GetValueJSONHandler() http.Handler {
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
-			} else {
-				w.WriteHeader(http.StatusOK)
 			}
+			w.WriteHeader(http.StatusOK)
 		}
 	}
 	return http.HandlerFunc(fn)
@@ -197,6 +195,23 @@ func AllMetricsHandler() http.Handler {
 				w.WriteHeader(http.StatusInternalServerError)
 			}
 		}
+	}
+	return http.HandlerFunc(fn)
+}
+
+func PingDBHandler(DatabaseDSN string) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		settings := postgres.NewPSQLStr(DatabaseDSN)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		err := settings.Ping(ctx)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusOK)
 	}
 	return http.HandlerFunc(fn)
 }
