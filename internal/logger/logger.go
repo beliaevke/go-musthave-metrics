@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"bytes"
 	"log"
 	"net/http"
 	"time"
@@ -75,16 +74,10 @@ func WithLogging(h http.Handler) http.Handler {
 				"size", responseData.size, // получаем перехваченный размер ответа
 			)
 		} else {
-			var buf bytes.Buffer
-			_, err := buf.ReadFrom(r.Body)
-			if err != nil {
-				return
-			}
 			sugar.Infoln(
 				"uri", r.RequestURI,
 				"method", r.Method,
 				"duration", duration,
-				"body", buf.Bytes(),
 			)
 		}
 	}

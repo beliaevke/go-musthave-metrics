@@ -281,6 +281,16 @@ func UpdateDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+			resp, err := json.Marshal(metric)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			_, err = w.Write(resp)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 			w.WriteHeader(http.StatusOK)
 		}
 	}
@@ -380,7 +390,7 @@ func GetValueDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
 			}
 			val, err := settings.GetValue(ctx, DatabaseDSN, metric.MType, metric.ID)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				w.WriteHeader(http.StatusNotFound)
 				return
 			}
 			if metric.MType == "gauge" {
