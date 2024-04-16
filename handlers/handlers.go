@@ -435,7 +435,11 @@ func UpdateBatchMetrics(locallink client.Locallink, metrics []postgres.Metrics) 
 		logger.Warnf("Update batch metrics error: " + err.Error())
 		return err
 	}
-	client.Post(url, `application/json`, bytes.NewBuffer(data))
+	response, err := client.Post(url, `application/json`, bytes.NewBuffer(data))
+	if err != nil {
+		return err
+	}
+	response.Body.Close()
 	return nil
 }
 
