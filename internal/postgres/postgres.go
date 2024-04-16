@@ -70,7 +70,7 @@ func (s *Settings) Updates(ctx context.Context, db *pgxpool.Pool, metrics []Metr
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx)
+	defer tx.Rollback(ctx) //nolint
 	for _, m := range metrics {
 		err := s.UpdateNew(ctx, db, m.MType, m.ID, m.Delta, m.Value)
 		if err != nil {
@@ -140,7 +140,7 @@ func (s *Settings) UpdateNew(ctx context.Context, db *pgxpool.Pool, t string, n 
 		case nil:
 			_, err = db.Exec(ctx, `
 				UPDATE public.counters
-				SET mvalue=$2
+				SET mvalue=mvalue+$2
 				WHERE mname=$1;
 			`, n, delta)
 			if err != nil {
