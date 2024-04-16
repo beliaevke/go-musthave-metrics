@@ -67,17 +67,16 @@ func UpdateJSONHandler(storeInterval int, fileStoragePath string) http.Handler {
 				if err != nil {
 					return err
 				}
+				// десериализуем JSON в Visitor
+				if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
+					return err
+				}
 				return nil
 			},
 				retry.Attempts(3),
 				retry.Delay(1000*time.Millisecond),
 			)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			// десериализуем JSON в Visitor
-			if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
@@ -255,6 +254,10 @@ func UpdateDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
 				if err != nil {
 					return err
 				}
+				// десериализуем JSON в Visitor
+				if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
+					return err
+				}
 				return nil
 			},
 				retry.Attempts(3),
@@ -262,11 +265,6 @@ func UpdateDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
 				retry.Context(ctx),
 			)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			// десериализуем JSON в Visitor
-			if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
@@ -311,6 +309,10 @@ func UpdateBatchDBHandler(DatabaseDSN string) http.Handler {
 				if err != nil {
 					return err
 				}
+				// десериализуем JSON в Visitor
+				if err = json.Unmarshal(buf.Bytes(), &metrics); err != nil {
+					return err
+				}
 				return nil
 			},
 				retry.Attempts(3),
@@ -318,11 +320,6 @@ func UpdateBatchDBHandler(DatabaseDSN string) http.Handler {
 				retry.Context(ctx),
 			)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			// десериализуем JSON в Visitor
-			if err = json.Unmarshal(buf.Bytes(), &metrics); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
