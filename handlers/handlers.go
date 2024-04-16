@@ -61,8 +61,17 @@ func UpdateJSONHandler(storeInterval int, fileStoragePath string) http.Handler {
 		if r.Method == http.MethodPost {
 			var metric MetricsJSON
 			var buf bytes.Buffer
-			// читаем тело запроса
-			_, err := buf.ReadFrom(r.Body)
+			err := retry.Do(func() error {
+				// читаем тело запроса
+				_, err := buf.ReadFrom(r.Body)
+				if err != nil {
+					return err
+				}
+				return nil
+			},
+				retry.Attempts(3),
+				retry.Delay(1000*time.Millisecond),
+			)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -240,8 +249,18 @@ func UpdateDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
 		if r.Method == http.MethodPost {
 			var metric MetricsJSON
 			var buf bytes.Buffer
-			// читаем тело запроса
-			_, err := buf.ReadFrom(r.Body)
+			err := retry.Do(func() error {
+				// читаем тело запроса
+				_, err := buf.ReadFrom(r.Body)
+				if err != nil {
+					return err
+				}
+				return nil
+			},
+				retry.Attempts(3),
+				retry.Delay(1000*time.Millisecond),
+				retry.Context(ctx),
+			)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
@@ -286,8 +305,18 @@ func UpdateBatchDBHandler(DatabaseDSN string) http.Handler {
 		if r.Method == http.MethodPost {
 			var metrics []postgres.Metrics
 			var buf bytes.Buffer
-			// читаем тело запроса
-			_, err := buf.ReadFrom(r.Body)
+			err := retry.Do(func() error {
+				// читаем тело запроса
+				_, err := buf.ReadFrom(r.Body)
+				if err != nil {
+					return err
+				}
+				return nil
+			},
+				retry.Attempts(3),
+				retry.Delay(1000*time.Millisecond),
+				retry.Context(ctx),
+			)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
