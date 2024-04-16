@@ -77,6 +77,7 @@ func UpdateJSONHandler(storeInterval int, fileStoragePath string) http.Handler {
 				retry.Delay(1000*time.Millisecond),
 			)
 			if err != nil {
+				logger.Warnf("JSON error: " + err.Error())
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
@@ -151,6 +152,7 @@ func GetValueJSONHandler() http.Handler {
 				retry.Delay(1000*time.Millisecond),
 			)
 			if err != nil {
+				logger.Warnf("JSON error: " + err.Error())
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
@@ -264,6 +266,7 @@ func UpdateDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
 				retry.Context(ctx),
 			)
 			if err != nil {
+				logger.Warnf("JSON error: " + err.Error())
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
@@ -319,6 +322,7 @@ func UpdateBatchDBHandler(DatabaseDSN string) http.Handler {
 				retry.Context(ctx),
 			)
 			if err != nil {
+				logger.Warnf("JSON error: " + err.Error())
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
@@ -370,6 +374,7 @@ func GetValueDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
 				retry.Context(ctx),
 			)
 			if err != nil {
+				logger.Warnf("JSON error: " + err.Error())
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
