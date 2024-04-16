@@ -2,11 +2,21 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"embed"
 	"fmt"
+	"musthave-metrics/internal/logger"
+	"strconv"
+	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/pressly/goose/v3"
 )
+
+//go:embed migrations/*.sql
+var embedMigrations embed.FS
 
 type Settings struct {
 	User    string
@@ -53,11 +63,145 @@ func (s *Settings) Update(t string, n string, v string) error {
 	return nil
 }
 
-func (s *Settings) UpdateNew(t string, n string, delta *int64, value *float64) error {
+func (s *Settings) UpdateNew(ctx context.Context, DatabaseDSN string, t string, n string, d *int64, v *float64) error {
+	db, err := pgxpool.New(ctx, DatabaseDSN)
+	if err != nil {
+		logger.Warnf("sql.Open(): " + err.Error())
+	}
+	defer db.Close()
+	if t == "gauge" {
+		value := strconv.FormatFloat(*v, 'g', -1, 64)
+		result := db.QueryRow(ctx, `
+			SELECT gauges.mname
+			FROM
+				public.gauges
+			WHERE
+				gauges.mname=$1
+		`, n)
+		switch err := result.Scan(&n); err {
+		case pgx.ErrNoRows:
+			_, err = db.Exec(ctx, `
+				INSERT INTO public.gauges
+				(mname, mvalue)
+				VALUES
+				($1, $2);
+			`, n, value)
+			if err != nil {
+				logger.Warnf("INSERT INTO Gauges: " + err.Error())
+				return err
+			}
+		case nil:
+			_, err = db.Exec(ctx, `
+				UPDATE public.gauges
+				SET mvalue=$2
+				WHERE mname=$1;
+			`, n, value)
+			if err != nil {
+				logger.Warnf("UPDATE Gauges: " + err.Error())
+				return err
+			}
+		case err:
+			logger.Warnf("QueryRow Gauges: " + err.Error())
+			return err
+		}
+	} else if t == "counter" {
+		delta := strconv.FormatInt(*d, 10)
+		result := db.QueryRow(ctx, `
+			SELECT counters.mname
+			FROM
+				public.counters
+			WHERE
+				counters.mname=$1
+		`, n)
+		switch err := result.Scan(&n); err {
+		case pgx.ErrNoRows:
+			_, err = db.Exec(ctx, `
+				INSERT INTO public.counters
+				(mname, mvalue)
+				VALUES
+				($1, $2);
+			`, n, delta)
+			if err != nil {
+				logger.Warnf("INSERT INTO Counters: " + err.Error())
+				return err
+			}
+		case nil:
+			_, err = db.Exec(ctx, `
+				UPDATE public.counters
+				SET mvalue=$2
+				WHERE mname=$1;
+			`, n, delta)
+			if err != nil {
+				logger.Warnf("UPDATE Counters: " + err.Error())
+				return err
+			}
+		case err:
+			logger.Warnf("QueryRow Counters: " + err.Error())
+			return err
+		}
+	}
 	return nil
 }
 
-func (s *Settings) GetValue(t string, n string) (any, error) {
-	var val any
+func (s *Settings) GetValue(ctx context.Context, DatabaseDSN string, t string, n string) (string, error) {
+	var val string
+	db, err := pgxpool.New(ctx, DatabaseDSN)
+	if err != nil {
+		logger.Warnf("sql.Open(): " + err.Error())
+	}
+	defer db.Close()
+	if t == "gauge" {
+		result := db.QueryRow(ctx, `
+			SELECT gauges.mvalue
+			FROM
+				public.gauges
+			WHERE
+				gauges.mname=$1
+		`, n)
+		switch err := result.Scan(&val); err {
+		case pgx.ErrNoRows:
+			return "0", nil
+		case nil:
+			return val, nil
+		case err:
+			logger.Warnf("QueryRow Gauges: " + err.Error())
+			return "0", err
+		}
+	} else if t == "counter" {
+		result := db.QueryRow(ctx, `
+			SELECT counters.mvalue
+			FROM
+				public.counters
+			WHERE
+			counters.mname=$1
+		`, n)
+		switch err := result.Scan(&val); err {
+		case pgx.ErrNoRows:
+			return "0", nil
+		case nil:
+			return val, nil
+		case err:
+			logger.Warnf("QueryRow Counters: " + err.Error())
+			return "0", err
+		}
+	}
 	return val, nil
+}
+
+func SetDB(ctx context.Context, DatabaseDSN string) {
+	db, err := sql.Open("pgx", DatabaseDSN)
+	if err != nil {
+		logger.Warnf("sql.Open(): " + err.Error())
+	}
+	defer func() {
+		if err := db.Close(); err != nil {
+			logger.Warnf("goose: failed to close DB: " + err.Error())
+		}
+	}()
+	goose.SetBaseFS(embedMigrations)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := goose.UpContext(ctx, db, "migrations"); err != nil {
+		logger.Warnf("goose: run failed  " + err.Error())
+	}
 }

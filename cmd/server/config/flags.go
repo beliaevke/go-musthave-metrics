@@ -43,7 +43,7 @@ func ParseFlags() ServerFlags {
 	// булево значение (true/false), определяющее, загружать или нет ранее сохранённые значения из указанного файла при старте сервера (по умолчанию true).
 	flag.BoolVar(&cfg.FlagRestore, "r", true, "flag restore")
 	// Строка с адресом подключения к БД должна получаться из переменной окружения DATABASE_DSN или флага командной строки -d.
-	flag.StringVar(&cfg.FlagDatabaseDSN, "d", "user=postgres password=postgres host=localhost port=5432 dbname=postgres sslmode=disable", "Database DSN")
+	flag.StringVar(&cfg.FlagDatabaseDSN, "d", "user=postgres password=pos111 host=localhost port=5432 dbname=postgres sslmode=disable", "Database DSN")
 	// парсим переданные серверу аргументы в зарегистрированные переменные
 	flag.Parse()
 

@@ -202,7 +202,7 @@ func AllMetricsHandler() http.Handler {
 func PingDBHandler(DatabaseDSN string) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		settings := postgres.NewPSQLStr(DatabaseDSN)
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancel()
 		err := settings.Ping(ctx)
 		if err != nil {
@@ -211,6 +211,106 @@ func PingDBHandler(DatabaseDSN string) http.Handler {
 		}
 		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
+	}
+	return http.HandlerFunc(fn)
+}
+
+func UpdateDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		settings := postgres.NewPSQLStr(DatabaseDSN)
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		err := settings.Ping(ctx)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost {
+			var metric MetricsJSON
+			var buf bytes.Buffer
+			// читаем тело запроса
+			_, err := buf.ReadFrom(r.Body)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			// десериализуем JSON в Visitor
+			if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			err = settings.UpdateNew(ctx, DatabaseDSN, metric.MType, metric.ID, metric.Delta, metric.Value)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}
+	}
+	return http.HandlerFunc(fn)
+}
+
+func GetValueDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		settings := postgres.NewPSQLStr(DatabaseDSN)
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		err := settings.Ping(ctx)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost {
+			var metric MetricsJSON
+			var buf bytes.Buffer
+			// читаем тело запроса
+			_, err := buf.ReadFrom(r.Body)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			// десериализуем JSON в Visitor
+			if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			val, err := settings.GetValue(ctx, DatabaseDSN, metric.MType, metric.ID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if metric.MType == "gauge" {
+				gaugeValue, err := strconv.ParseFloat(val, 64)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				metric.Value = &gaugeValue
+			} else if metric.MType == "counter" {
+				counterValue, err := strconv.ParseInt(val, 10, 64)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				metric.Delta = &counterValue
+			} else {
+				http.Error(w, "unknown metric type", http.StatusInternalServerError)
+				return
+			}
+			resp, err := json.Marshal(metric)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			_, err = w.Write(resp)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}
 	}
 	return http.HandlerFunc(fn)
 }

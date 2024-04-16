@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"log"
 	"musthave-metrics/cmd/server/config"
 	"musthave-metrics/handlers"
 	"musthave-metrics/internal/compress"
 	"musthave-metrics/internal/logger"
+	"musthave-metrics/internal/postgres"
 	"net/http"
 	"time"
 
@@ -30,9 +32,9 @@ func run(cfg config.ServerFlags) error {
 	mux := chi.NewMux()
 	mux.Use(logger.WithLogging, compress.WithGzipEncoding)
 	mux.Handle("/update/{metricType}/{metricName}/{metricValue}", handlers.UpdateHandler())
-	mux.Handle("/update/", handlers.UpdateJSONHandler(cfg.FlagStoreInterval, cfg.FlagFileStoragePath))
+	mux.Handle("/update/", updateHandler(cfg))
 	mux.Handle("/value/{metricType}/{metricName}", handlers.GetValueHandler())
-	mux.Handle("/value/", handlers.GetValueJSONHandler())
+	mux.Handle("/value/", valueHandler(cfg))
 	mux.Handle("/ping", handlers.PingDBHandler(cfg.FlagDatabaseDSN))
 	mux.Handle("/", handlers.AllMetricsHandler())
 	return http.ListenAndServe(cfg.FlagRunAddr, mux)
@@ -44,4 +46,21 @@ func storeMetrics(cfg config.ServerFlags) {
 		storeMetrics(cfg)
 	}
 	time.AfterFunc(time.Duration(cfg.FlagStoreInterval)*time.Second, f)
+}
+
+func updateHandler(cfg config.ServerFlags) http.Handler {
+	if cfg.FlagDatabaseDSN != "" {
+		ctx := context.Background()
+		postgres.SetDB(ctx, cfg.FlagDatabaseDSN)
+		return handlers.UpdateDBHandler(ctx, cfg.FlagDatabaseDSN)
+	}
+	return handlers.UpdateJSONHandler(cfg.FlagStoreInterval, cfg.FlagFileStoragePath)
+}
+
+func valueHandler(cfg config.ServerFlags) http.Handler {
+	if cfg.FlagDatabaseDSN != "" {
+		ctx := context.Background()
+		return handlers.GetValueDBHandler(ctx, cfg.FlagDatabaseDSN)
+	}
+	return handlers.GetValueJSONHandler()
 }
