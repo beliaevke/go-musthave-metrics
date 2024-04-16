@@ -141,17 +141,16 @@ func GetValueJSONHandler() http.Handler {
 				if err != nil {
 					return err
 				}
+				// десериализуем JSON в Visitor
+				if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
+					return err
+				}
 				return nil
 			},
 				retry.Attempts(3),
 				retry.Delay(1000*time.Millisecond),
 			)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			// десериализуем JSON в Visitor
-			if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
@@ -360,6 +359,10 @@ func GetValueDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
 				if err != nil {
 					return err
 				}
+				// десериализуем JSON в Visitor
+				if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
+					return err
+				}
 				return nil
 			},
 				retry.Attempts(3),
@@ -367,11 +370,6 @@ func GetValueDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
 				retry.Context(ctx),
 			)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			// десериализуем JSON в Visitor
-			if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
