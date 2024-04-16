@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Metric struct {
@@ -240,7 +241,59 @@ func UpdateDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			err = settings.UpdateNew(ctx, DatabaseDSN, metric.MType, metric.ID, metric.Delta, metric.Value)
+			db, err := pgxpool.New(ctx, DatabaseDSN)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			defer db.Close()
+			err = settings.UpdateNew(ctx, db, metric.MType, metric.ID, metric.Delta, metric.Value)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}
+	}
+	return http.HandlerFunc(fn)
+}
+
+func UpdateBatchDBHandler(DatabaseDSN string) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		if DatabaseDSN == "" {
+			logger.Warnf("DatabaseDSN: empty string")
+			return
+		}
+		settings := postgres.NewPSQLStr(DatabaseDSN)
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		err := settings.Ping(ctx)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodPost {
+			var metrics []postgres.Metrics
+			var buf bytes.Buffer
+			// читаем тело запроса
+			_, err := buf.ReadFrom(r.Body)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			// десериализуем JSON в Visitor
+			if err = json.Unmarshal(buf.Bytes(), &metrics); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			db, err := pgxpool.New(ctx, DatabaseDSN)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			defer db.Close()
+			err = settings.Updates(ctx, db, metrics)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -371,6 +424,18 @@ func UpdateMetrics(locallink client.Locallink, mtype string, mname string, mvalu
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func UpdateBatchMetrics(locallink client.Locallink, metrics []postgres.Metrics) error {
+	client := &http.Client{}
+	url := service.MakeBatchUpdatesURL(locallink.RunAddr)
+	data, err := json.MarshalIndent(metrics, "", "   ")
+	if err != nil {
+		logger.Warnf("Update batch metrics error: " + err.Error())
+		return err
+	}
+	client.Post(url, `application/json`, bytes.NewBuffer(data))
 	return nil
 }
 

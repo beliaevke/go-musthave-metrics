@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"musthave-metrics/cmd/agent/client"
 	"musthave-metrics/handlers"
+	"musthave-metrics/internal/postgres"
 	"reflect"
 	"runtime"
 	"strconv"
@@ -59,6 +60,7 @@ func (agent *agent) pollMetrics() {
 func (agent *agent) reportMetrics() {
 	f := func() {
 		agent.pushMetrics()
+		agent.pushBatchMetrics()
 		agent.reportMetrics()
 		agent.printMetricsLog("=> Push")
 	}
@@ -73,6 +75,38 @@ func (agent *agent) pushMetrics() {
 	for name, val := range agent.GaugeMetrics {
 		err = handlers.UpdateMetrics(agent.client, "gauge", name, val)
 	}
+	if err != nil {
+		agent.printErrorLog(err)
+	}
+}
+
+func (agent *agent) pushBatchMetrics() {
+	var metrics []postgres.Metrics
+	var err error
+	for name, val := range agent.CounterMetrics {
+		metrics = append(metrics,
+			postgres.Metrics{
+				ID:    name,
+				MType: "counter",
+				Delta: &val,
+			},
+		)
+	}
+	for name, val := range agent.GaugeMetrics {
+		gaugeValue, err := strconv.ParseFloat(val, 64)
+		if err != nil {
+			agent.printErrorLog(err)
+			continue
+		}
+		metrics = append(metrics,
+			postgres.Metrics{
+				ID:    name,
+				MType: "gauge",
+				Value: &gaugeValue,
+			},
+		)
+	}
+	err = handlers.UpdateBatchMetrics(agent.client, metrics)
 	if err != nil {
 		agent.printErrorLog(err)
 	}

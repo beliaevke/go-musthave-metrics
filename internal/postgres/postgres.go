@@ -27,6 +27,13 @@ type Settings struct {
 	ConnStr string
 }
 
+type Metrics struct {
+	ID    string   `json:"id"`              // имя метрики
+	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
+	Delta *int64   `json:"delta,omitempty"` // значение метрики в случае передачи counter
+	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
+}
+
 func NewPSQL(user string, pass string, host string, port string, db string) Settings {
 	return Settings{
 		User:   user,
@@ -58,17 +65,22 @@ func (s *Settings) Ping(ctx context.Context) error {
 	return nil
 }
 
-func (s *Settings) Update(t string, n string, v string) error {
-	// depricated
-	return nil
+func (s *Settings) Updates(ctx context.Context, db *pgxpool.Pool, metrics []Metrics) error {
+	tx, err := db.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	for _, m := range metrics {
+		err := s.UpdateNew(ctx, db, m.MType, m.ID, m.Delta, m.Value)
+		if err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }
 
-func (s *Settings) UpdateNew(ctx context.Context, DatabaseDSN string, t string, n string, d *int64, v *float64) error {
-	db, err := pgxpool.New(ctx, DatabaseDSN)
-	if err != nil {
-		logger.Warnf("sql.Open(): " + err.Error())
-	}
-	defer db.Close()
+func (s *Settings) UpdateNew(ctx context.Context, db *pgxpool.Pool, t string, n string, d *int64, v *float64) error {
 	if t == "gauge" {
 		value := strconv.FormatFloat(*v, 'g', -1, 64)
 		result := db.QueryRow(ctx, `

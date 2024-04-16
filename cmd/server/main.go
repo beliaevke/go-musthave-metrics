@@ -33,6 +33,7 @@ func run(cfg config.ServerFlags) error {
 	mux.Use(logger.WithLogging, compress.WithGzipEncoding)
 	mux.Handle("/update/{metricType}/{metricName}/{metricValue}", handlers.UpdateHandler())
 	mux.Handle("/update/", updateHandler(cfg))
+	mux.Handle("/updates/", handlers.UpdateBatchDBHandler(cfg.FlagDatabaseDSN))
 	mux.Handle("/value/{metricType}/{metricName}", handlers.GetValueHandler())
 	mux.Handle("/value/", valueHandler(cfg))
 	mux.Handle("/ping", handlers.PingDBHandler(cfg.FlagDatabaseDSN))
