@@ -58,15 +58,15 @@ func UpdateHandler() http.Handler {
 func UpdateJSONHandler(storeInterval int, fileStoragePath string) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if r.Method == http.MethodPost {
+		var buf bytes.Buffer
+		// читаем тело запроса
+		n, err := buf.ReadFrom(r.Body)
+		if err != nil {
+			return
+		}
+		if r.Method == http.MethodPost && n != 0 {
 			var metric MetricsJSON
-			var buf bytes.Buffer
 			err := retry.Do(func() error {
-				// читаем тело запроса
-				_, err := buf.ReadFrom(r.Body)
-				if err != nil {
-					return err
-				}
 				// десериализуем JSON в Visitor
 				if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
 					return err
@@ -132,15 +132,15 @@ func GetValueHandler() http.Handler {
 func GetValueJSONHandler() http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if r.Method == http.MethodPost {
+		var buf bytes.Buffer
+		// читаем тело запроса
+		n, err := buf.ReadFrom(r.Body)
+		if err != nil {
+			return
+		}
+		if r.Method == http.MethodPost && n != 0 {
 			var metric MetricsJSON
-			var buf bytes.Buffer
 			err := retry.Do(func() error {
-				// читаем тело запроса
-				_, err := buf.ReadFrom(r.Body)
-				if err != nil {
-					return err
-				}
 				// десериализуем JSON в Visitor
 				if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
 					return err
@@ -244,15 +244,15 @@ func UpdateDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if r.Method == http.MethodPost {
+		var buf bytes.Buffer
+		// читаем тело запроса
+		n, err := buf.ReadFrom(r.Body)
+		if err != nil {
+			return
+		}
+		if r.Method == http.MethodPost && n != 0 {
 			var metric MetricsJSON
-			var buf bytes.Buffer
 			err := retry.Do(func() error {
-				// читаем тело запроса
-				_, err := buf.ReadFrom(r.Body)
-				if err != nil {
-					return err
-				}
 				// десериализуем JSON в Visitor
 				if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
 					return err
@@ -299,15 +299,15 @@ func UpdateBatchDBHandler(DatabaseDSN string) http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if r.Method == http.MethodPost {
+		var buf bytes.Buffer
+		// читаем тело запроса
+		n, err := buf.ReadFrom(r.Body)
+		if err != nil {
+			return
+		}
+		if r.Method == http.MethodPost && n != 0 {
 			var metrics []postgres.Metrics
-			var buf bytes.Buffer
 			err := retry.Do(func() error {
-				// читаем тело запроса
-				_, err := buf.ReadFrom(r.Body)
-				if err != nil {
-					return err
-				}
 				// десериализуем JSON в Visitor
 				if err = json.Unmarshal(buf.Bytes(), &metrics); err != nil {
 					return err
@@ -350,15 +350,15 @@ func GetValueDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		if r.Method == http.MethodPost {
+		var buf bytes.Buffer
+		// читаем тело запроса
+		n, err := buf.ReadFrom(r.Body)
+		if err != nil {
+			return
+		}
+		if r.Method == http.MethodPost && n != 0 {
 			var metric MetricsJSON
-			var buf bytes.Buffer
 			err := retry.Do(func() error {
-				// читаем тело запроса
-				_, err := buf.ReadFrom(r.Body)
-				if err != nil {
-					return err
-				}
 				// десериализуем JSON в Visitor
 				if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
 					return err
