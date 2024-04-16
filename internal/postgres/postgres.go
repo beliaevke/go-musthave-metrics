@@ -4,15 +4,20 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"musthave-metrics/internal/logger"
 	"strconv"
 	"time"
 
+	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
+
+	"github.com/avast/retry-go/v4"
 )
 
 //go:embed migrations/*.sql
@@ -34,6 +39,27 @@ type Metrics struct {
 	Value *float64 `json:"value,omitempty"` // значение метрики в случае передачи gauge
 }
 
+type RetryAfterError struct {
+	Config pgxpool.Config
+}
+
+func (err RetryAfterError) Error() string {
+	return fmt.Sprintf(
+		"Connection to %v error: %v",
+		err.Config.ConnString(),
+		err.Config.ConnConfig.OnPgError,
+	)
+}
+
+type SomeOtherError struct {
+	err        string
+	retryAfter time.Duration
+}
+
+func (err SomeOtherError) Error() string {
+	return err.err
+}
+
 func NewPSQL(user string, pass string, host string, port string, db string) Settings {
 	return Settings{
 		User:   user,
@@ -53,16 +79,40 @@ func NewPSQLStr(connection string) Settings {
 }
 
 func (s *Settings) Ping(ctx context.Context) error {
-	dbpool, err := pgxpool.New(ctx, s.ConnStr)
-	if err != nil {
-		return err
-	}
-	defer dbpool.Close()
-	err = dbpool.Ping(ctx)
-	if err != nil {
-		return err
-	}
-	return nil
+	err := retry.Do(func() error {
+		dbpool, err := pgxpool.New(ctx, s.ConnStr)
+		if err != nil {
+			return err
+		}
+		defer dbpool.Close()
+		err = dbpool.Ping(ctx)
+		if err != nil {
+			return err
+		}
+		return nil
+	},
+		retry.RetryIf(func(errAttempt error) bool {
+			var pgErr *pgconn.PgError
+			if errors.As(errAttempt, &pgErr) && pgerrcode.IsConnectionException(pgErr.Code) {
+				return true
+			}
+			return false
+		}),
+		retry.Attempts(3),
+		retry.Delay(time.Second),
+		retry.DelayType(func(n uint, err error, config *retry.Config) time.Duration {
+			switch e := err.(type) {
+			case RetryAfterError:
+				return 2 * time.Second
+			case SomeOtherError:
+				return e.retryAfter
+			}
+			//default is backoffdelay
+			return retry.BackOffDelay(n, err, config)
+		}),
+		retry.Context(ctx),
+	)
+	return err
 }
 
 func (s *Settings) Updates(ctx context.Context, db *pgxpool.Pool, metrics []Metrics) error {
