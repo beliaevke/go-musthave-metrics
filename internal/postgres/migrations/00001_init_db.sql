@@ -6,7 +6,7 @@ CREATE TABLE Gauges (
 
 CREATE TABLE Counters (
     mname TEXT PRIMARY KEY,
-    mvalue INTEGER NOT NULL
+    mvalue BIGINT NOT NULL
 );
 
 -- +goose Down
