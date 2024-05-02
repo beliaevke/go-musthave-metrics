@@ -58,7 +58,7 @@ func updateHandler(cfg config.ServerFlags) http.Handler {
 	if cfg.FlagDatabaseDSN != "" {
 		ctx := context.Background()
 		postgres.SetDB(ctx, cfg.FlagDatabaseDSN)
-		return handlers.UpdateDBHandler(ctx, cfg.FlagDatabaseDSN, cfg.FlagHashKey)
+		return handlers.UpdateDBHandler(ctx, cfg.FlagDatabaseDSN)
 	}
 	return handlers.UpdateJSONHandler(cfg.FlagStoreInterval, cfg.FlagFileStoragePath)
 }

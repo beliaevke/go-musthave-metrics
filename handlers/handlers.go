@@ -235,7 +235,7 @@ func PingDBHandler(DatabaseDSN string) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
-func UpdateDBHandler(ctx context.Context, DatabaseDSN string, HashKey string) http.Handler {
+func UpdateDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		settings := postgres.NewPSQLStr(DatabaseDSN)
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
@@ -290,9 +290,6 @@ func UpdateDBHandler(ctx context.Context, DatabaseDSN string, HashKey string) ht
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
-			}
-			if HashKey != "" {
-				w.Header().Set("HashSHA256", service.GetHashString(resp, HashKey))
 			}
 			w.WriteHeader(http.StatusOK)
 		}
