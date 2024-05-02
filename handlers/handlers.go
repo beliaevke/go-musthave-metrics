@@ -2,20 +2,25 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"musthave-metrics/cmd/agent/client"
 	"musthave-metrics/internal/logger"
+	"musthave-metrics/internal/postgres"
 	"musthave-metrics/internal/service"
 	"musthave-metrics/internal/storage"
 	"net/http"
 	"os"
 	"strconv"
 	"text/template"
+	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/go-chi/chi"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Metric struct {
@@ -53,17 +58,26 @@ func UpdateHandler() http.Handler {
 func UpdateJSONHandler(storeInterval int, fileStoragePath string) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if r.Method == http.MethodPost {
+		var buf bytes.Buffer
+		// читаем тело запроса
+		n, err := buf.ReadFrom(r.Body)
+		if err != nil {
+			return
+		}
+		if r.Method == http.MethodPost && n != 0 {
 			var metric MetricsJSON
-			var buf bytes.Buffer
-			// читаем тело запроса
-			_, err := buf.ReadFrom(r.Body)
+			err := retry.Do(func() error {
+				// десериализуем JSON в Visitor
+				if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
+					return err
+				}
+				return nil
+			},
+				retry.Attempts(3),
+				retry.Delay(1000*time.Millisecond),
+			)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			// десериализуем JSON в Visitor
-			if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
+				logger.Warnf("JSON error: " + err.Error())
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
@@ -78,22 +92,20 @@ func UpdateJSONHandler(storeInterval int, fileStoragePath string) http.Handler {
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
-			} else {
-				resp, err := json.Marshal(metric)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				}
-				_, err = w.Write(resp)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
-					return
-				} else {
-					w.WriteHeader(http.StatusOK)
-					if storeInterval == 0 {
-						storeMetric(metric, fileStoragePath)
-					}
-				}
+			}
+			resp, err := json.Marshal(metric)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			_, err = w.Write(resp)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			if storeInterval == 0 {
+				storeMetric(metric, fileStoragePath)
 			}
 		}
 	}
@@ -121,17 +133,26 @@ func GetValueHandler() http.Handler {
 func GetValueJSONHandler() http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if r.Method == http.MethodPost {
+		var buf bytes.Buffer
+		// читаем тело запроса
+		n, err := buf.ReadFrom(r.Body)
+		if err != nil {
+			return
+		}
+		if r.Method == http.MethodPost && n != 0 {
 			var metric MetricsJSON
-			var buf bytes.Buffer
-			// читаем тело запроса
-			_, err := buf.ReadFrom(r.Body)
+			err := retry.Do(func() error {
+				// десериализуем JSON в Visitor
+				if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
+					return err
+				}
+				return nil
+			},
+				retry.Attempts(3),
+				retry.Delay(1000*time.Millisecond),
+			)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusBadRequest)
-				return
-			}
-			// десериализуем JSON в Visitor
-			if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
+				logger.Warnf("JSON error: " + err.Error())
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
@@ -148,17 +169,15 @@ func GetValueJSONHandler() http.Handler {
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
-				} else {
-					metric.Value = &gaugeValue
 				}
+				metric.Value = &gaugeValue
 			} else if metric.MType == "counter" {
 				counterValue, err := strconv.ParseInt(val, 10, 64)
 				if err != nil {
 					http.Error(w, err.Error(), http.StatusInternalServerError)
 					return
-				} else {
-					metric.Delta = &counterValue
 				}
+				metric.Delta = &counterValue
 			} else {
 				http.Error(w, "unknown metric type", http.StatusInternalServerError)
 				return
@@ -172,9 +191,8 @@ func GetValueJSONHandler() http.Handler {
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
-			} else {
-				w.WriteHeader(http.StatusOK)
 			}
+			w.WriteHeader(http.StatusOK)
 		}
 	}
 	return http.HandlerFunc(fn)
@@ -196,6 +214,214 @@ func AllMetricsHandler() http.Handler {
 			if err != nil {
 				w.WriteHeader(http.StatusInternalServerError)
 			}
+		}
+	}
+	return http.HandlerFunc(fn)
+}
+
+func PingDBHandler(DatabaseDSN string) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		settings := postgres.NewPSQLStr(DatabaseDSN)
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		err := settings.Ping(ctx)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusOK)
+	}
+	return http.HandlerFunc(fn)
+}
+
+func UpdateDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		settings := postgres.NewPSQLStr(DatabaseDSN)
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		err := settings.Ping(ctx)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		var buf bytes.Buffer
+		// читаем тело запроса
+		n, err := buf.ReadFrom(r.Body)
+		if err != nil {
+			return
+		}
+		if r.Method == http.MethodPost && n != 0 {
+			var metric MetricsJSON
+			err := retry.Do(func() error {
+				// десериализуем JSON в Visitor
+				if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
+					return err
+				}
+				return nil
+			},
+				retry.Attempts(3),
+				retry.Delay(1000*time.Millisecond),
+				retry.Context(ctx),
+			)
+			if err != nil {
+				logger.Warnf("JSON error: " + err.Error())
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			db, err := pgxpool.New(ctx, DatabaseDSN)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			defer db.Close()
+			err = settings.UpdateNew(ctx, db, metric.MType, metric.ID, metric.Delta, metric.Value)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			resp, err := json.Marshal(metric)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			_, err = w.Write(resp)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}
+	}
+	return http.HandlerFunc(fn)
+}
+
+func UpdateBatchDBHandler(DatabaseDSN string) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		if DatabaseDSN == "" {
+			logger.Warnf("DatabaseDSN: empty string")
+			return
+		}
+		settings := postgres.NewPSQLStr(DatabaseDSN)
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		err := settings.Ping(ctx)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		var buf bytes.Buffer
+		// читаем тело запроса
+		n, err := buf.ReadFrom(r.Body)
+		if err != nil {
+			return
+		}
+		if r.Method == http.MethodPost && n != 0 {
+			var metrics []postgres.Metrics
+			err := retry.Do(func() error {
+				// десериализуем JSON в Visitor
+				if err = json.Unmarshal(buf.Bytes(), &metrics); err != nil {
+					return err
+				}
+				return nil
+			},
+				retry.Attempts(3),
+				retry.Delay(1000*time.Millisecond),
+				retry.Context(ctx),
+			)
+			if err != nil {
+				logger.Warnf("JSON error: " + err.Error())
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			db, err := pgxpool.New(ctx, DatabaseDSN)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			defer db.Close()
+			err = settings.Updates(ctx, db, metrics)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+		}
+	}
+	return http.HandlerFunc(fn)
+}
+
+func GetValueDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		settings := postgres.NewPSQLStr(DatabaseDSN)
+		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		defer cancel()
+		err := settings.Ping(ctx)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		var buf bytes.Buffer
+		// читаем тело запроса
+		n, err := buf.ReadFrom(r.Body)
+		if err != nil {
+			return
+		}
+		if r.Method == http.MethodPost && n != 0 {
+			var metric MetricsJSON
+			err := retry.Do(func() error {
+				// десериализуем JSON в Visitor
+				if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
+					return err
+				}
+				return nil
+			},
+				retry.Attempts(3),
+				retry.Delay(1000*time.Millisecond),
+				retry.Context(ctx),
+			)
+			if err != nil {
+				logger.Warnf("JSON error: " + err.Error())
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			val, err := settings.GetValue(ctx, DatabaseDSN, metric.MType, metric.ID)
+			if err != nil {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			if metric.MType == "gauge" {
+				gaugeValue, err := strconv.ParseFloat(val, 64)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				metric.Value = &gaugeValue
+			} else if metric.MType == "counter" {
+				counterValue, err := strconv.ParseInt(val, 10, 64)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				metric.Delta = &counterValue
+			} else {
+				http.Error(w, "unknown metric type", http.StatusInternalServerError)
+				return
+			}
+			resp, err := json.Marshal(metric)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			_, err = w.Write(resp)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			w.WriteHeader(http.StatusOK)
 		}
 	}
 	return http.HandlerFunc(fn)
@@ -257,6 +483,22 @@ func UpdateMetrics(locallink client.Locallink, mtype string, mname string, mvalu
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func UpdateBatchMetrics(locallink client.Locallink, metrics []postgres.Metrics) error {
+	client := &http.Client{}
+	url := service.MakeBatchUpdatesURL(locallink.RunAddr)
+	data, err := json.MarshalIndent(metrics, "", "   ")
+	if err != nil {
+		logger.Warnf("Update batch metrics error: " + err.Error())
+		return err
+	}
+	response, err := client.Post(url, `application/json`, bytes.NewBuffer(data))
+	if err != nil {
+		return err
+	}
+	response.Body.Close()
 	return nil
 }
 

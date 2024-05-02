@@ -117,6 +117,6 @@ func Warnf(s string) {
 	// делаем логер SugaredLogger
 	sugar := logger.Sugar()
 
-	// выводим сообщение уровня Info, но со строкой URL, это тоже SugaredLogger
-	sugar.Warnf("Running server on %s", s)
+	// выводим сообщение
+	sugar.Warnf("%s", s)
 }

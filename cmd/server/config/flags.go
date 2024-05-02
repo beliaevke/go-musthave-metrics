@@ -13,9 +13,11 @@ type ServerFlags struct {
 	FlagStoreInterval   int
 	FlagFileStoragePath string
 	FlagRestore         bool
+	FlagDatabaseDSN     string
 	EnvStoreInterval    int    `env:"STORE_INTERVAL"`
 	FileStoragePath     string `env:"FILE_STORAGE_PATH"`
 	EnvRestore          bool   `env:"RESTORE"`
+	DatabaseDSN         string `env:"DATABASE_DSN"`
 }
 
 // parseFlags обрабатывает аргументы командной строки
@@ -40,6 +42,8 @@ func ParseFlags() ServerFlags {
 	// регистрируем переменную FlagRestore
 	// булево значение (true/false), определяющее, загружать или нет ранее сохранённые значения из указанного файла при старте сервера (по умолчанию true).
 	flag.BoolVar(&cfg.FlagRestore, "r", true, "flag restore")
+	// Строка с адресом подключения к БД должна получаться из переменной окружения DATABASE_DSN или флага командной строки -d.
+	flag.StringVar(&cfg.FlagDatabaseDSN, "d", "", "Database DSN")
 	// парсим переданные серверу аргументы в зарегистрированные переменные
 	flag.Parse()
 
@@ -57,6 +61,9 @@ func ParseFlags() ServerFlags {
 	}
 	if cfg.EnvRestore {
 		cfg.FlagRestore = cfg.EnvRestore
+	}
+	if cfg.DatabaseDSN != "" {
+		cfg.FlagDatabaseDSN = cfg.DatabaseDSN
 	}
 	return *cfg
 }
