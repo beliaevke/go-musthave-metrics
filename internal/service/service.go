@@ -54,8 +54,16 @@ func (hd HashData) WithHashVerification(h http.Handler) http.Handler {
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
-			if !hmac.Equal(originalHash, decodeHash) {
-				w.WriteHeader(http.StatusBadRequest)
+			/*
+				if !hmac.Equal(originalHash, decodeHash) {
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+			*/
+			if hmac.Equal([]byte(originalHash), decodeHash) {
+				fmt.Println(originalHash)
+				fmt.Printf("%x", decodeHash)
+				http.Error(w, "bad hash value", http.StatusBadRequest)
 				return
 			}
 		}
