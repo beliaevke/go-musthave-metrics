@@ -425,7 +425,7 @@ func GetValueDBHandler(ctx context.Context, DatabaseDSN string, HashKey string) 
 				return
 			}
 			if HashKey != "" {
-				w.Header().Set("HashSHA256", service.GetHashString(resp, HashKey))
+				//w.Header().Set("HashSHA256", service.GetHashString(resp, HashKey))
 			}
 			w.WriteHeader(http.StatusOK)
 		}

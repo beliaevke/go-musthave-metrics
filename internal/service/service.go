@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,20 @@ import (
 
 type HashData struct {
 	Key string
+}
+
+type hashResponseWriter struct {
+	http.ResponseWriter
+	HashData HashData
+}
+
+func (r *hashResponseWriter) Write(b []byte) (int, error) {
+	// записываем ответ, используя оригинальный http.ResponseWriter
+	if r.HashData.Key != "" {
+		hash := GetHashString(b, r.HashData.Key)
+		r.ResponseWriter.Header().Set("HashSHA256", hash)
+	}
+	return r.ResponseWriter.Write(b)
 }
 
 func NewHashData(hashKey string) *HashData {
@@ -42,7 +57,6 @@ func getHash(data []byte, key string) []byte {
 
 func (hd HashData) WithHashVerification(h http.Handler) http.Handler {
 	hashVerificationFunc := func(w http.ResponseWriter, r *http.Request) {
-		ow := w
 		requestHash := r.Header.Get("HashSHA256")
 		if requestHash != "" && hd.Key != "" {
 			data, err := io.ReadAll(r.Body)
@@ -63,8 +77,13 @@ func (hd HashData) WithHashVerification(h http.Handler) http.Handler {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
+			r.Body = io.NopCloser(bytes.NewReader(data))
 		}
-		h.ServeHTTP(ow, r)
+		hw := hashResponseWriter{
+			ResponseWriter: w,
+			HashData:       hd,
+		}
+		h.ServeHTTP(&hw, r)
 	}
 	return http.HandlerFunc(hashVerificationFunc)
 }
