@@ -353,7 +353,7 @@ func UpdateBatchDBHandler(DatabaseDSN string) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
-func GetValueDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
+func GetValueDBHandler(ctx context.Context, DatabaseDSN string, HashKey string) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		settings := postgres.NewPSQLStr(DatabaseDSN)
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
@@ -420,6 +420,9 @@ func GetValueDBHandler(ctx context.Context, DatabaseDSN string) http.Handler {
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
+			}
+			if HashKey != "" {
+				w.Header().Set("HashSHA256", service.GetHashString(resp, HashKey))
 			}
 			w.WriteHeader(http.StatusOK)
 		}
@@ -494,7 +497,15 @@ func UpdateBatchMetrics(locallink client.Locallink, metrics []postgres.Metrics) 
 		logger.Warnf("Update batch metrics error: " + err.Error())
 		return err
 	}
-	response, err := client.Post(url, `application/json`, bytes.NewBuffer(data))
+	request, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(data))
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Content-Type", `application/json`)
+	if locallink.HashKey != "" {
+		request.Header.Set("HashSHA256", service.GetHashString(data, locallink.HashKey))
+	}
+	response, err := client.Do(request)
 	if err != nil {
 		return err
 	}

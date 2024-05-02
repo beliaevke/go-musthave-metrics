@@ -8,6 +8,7 @@ import (
 	"musthave-metrics/internal/compress"
 	"musthave-metrics/internal/logger"
 	"musthave-metrics/internal/postgres"
+	"musthave-metrics/internal/service"
 	"net/http"
 	"time"
 
@@ -31,6 +32,10 @@ func run(cfg config.ServerFlags) error {
 	logger.ServerRunningInfo(cfg.FlagRunAddr)
 	mux := chi.NewMux()
 	mux.Use(logger.WithLogging, compress.WithGzipEncoding)
+	if cfg.FlagHashKey != "" {
+		hd := service.NewHashData(cfg.FlagHashKey)
+		mux.Use(hd.WithHashVerification)
+	}
 	mux.Handle("/update/{metricType}/{metricName}/{metricValue}", handlers.UpdateHandler())
 	mux.Handle("/update/", updateHandler(cfg))
 	mux.Handle("/updates/", handlers.UpdateBatchDBHandler(cfg.FlagDatabaseDSN))
@@ -61,7 +66,7 @@ func updateHandler(cfg config.ServerFlags) http.Handler {
 func valueHandler(cfg config.ServerFlags) http.Handler {
 	if cfg.FlagDatabaseDSN != "" {
 		ctx := context.Background()
-		return handlers.GetValueDBHandler(ctx, cfg.FlagDatabaseDSN)
+		return handlers.GetValueDBHandler(ctx, cfg.FlagDatabaseDSN, cfg.FlagHashKey)
 	}
 	return handlers.GetValueJSONHandler()
 }

@@ -3,14 +3,16 @@ package main
 import (
 	"fmt"
 	"log"
-	"math/rand"
-	"musthave-metrics/cmd/agent/client"
-	"musthave-metrics/handlers"
-	"musthave-metrics/internal/postgres"
 	"reflect"
 	"runtime"
 	"strconv"
 	"time"
+
+	"math/rand"
+
+	"musthave-metrics/cmd/agent/client"
+	"musthave-metrics/handlers"
+	"musthave-metrics/internal/postgres"
 )
 
 type agent struct {
