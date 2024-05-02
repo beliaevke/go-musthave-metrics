@@ -44,8 +44,8 @@ func ParseFlags() ClientFlags {
 	// как аргумент -k со значением "" по умолчанию
 	flag.StringVar(&cfg.FlagHashKey, "k", "", "hash key")
 	// регистрируем переменную FlagRateLimit
-	// как аргумент -l со значением 3 по умолчанию
-	flag.IntVar(&cfg.FlagRateLimit, "l", 3, "rate limit")
+	// как аргумент -l со значением 1 по умолчанию
+	flag.IntVar(&cfg.FlagRateLimit, "l", 1, "rate limit")
 	// парсим переданные серверу аргументы в зарегистрированные переменные
 	flag.Parse()
 	if cfg.envRunAddr != "" {

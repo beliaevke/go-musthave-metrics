@@ -128,7 +128,6 @@ func (agent *agent) pushBatchMetrics() {
 }
 
 func (agent *agent) pushBatchMetricsWithWorkers() {
-	// допустим у вас 5 задач, которые нужно выполнить
 	numJobs := agent.client.RateLimit
 	// создаем буферизованный канал для принятия задач в воркер
 	jobs := make(chan int, numJobs)
@@ -182,10 +181,12 @@ func (agent *agent) setUtilMetrics() {
 	memstats, err := mem.VirtualMemory()
 	if err != nil {
 		agent.printErrorLog(err)
+		return
 	}
 	cpustat, err := cpu.Percent(0, false)
 	if err != nil {
 		agent.printErrorLog(err)
+		return
 	}
 	mu.Lock()
 	agent.GaugeMetrics["TotalMemory"] = strconv.FormatUint(memstats.Total, 10)
