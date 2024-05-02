@@ -13,10 +13,12 @@ type ClientFlags struct {
 	FlagReportInterval int
 	FlagPollInterval   int
 	FlagHashKey        string
+	FlagRateLimit      int
 	envRunAddr         string `env:"ADDRESS"`
 	envReportInterval  int    `env:"REPORT_INTERVAL"`
 	envPollInterval    int    `env:"POLL_INTERVAL"`
 	envHashKey         string `env:"KEY"`
+	envRateLimit       int    `env:"RATE_LIMIT"`
 }
 
 // parseFlags обрабатывает аргументы командной строки
@@ -41,6 +43,9 @@ func ParseFlags() ClientFlags {
 	// регистрируем переменную FlagHashKey
 	// как аргумент -k со значением "" по умолчанию
 	flag.StringVar(&cfg.FlagHashKey, "k", "", "hash key")
+	// регистрируем переменную FlagRateLimit
+	// как аргумент -l со значением 3 по умолчанию
+	flag.IntVar(&cfg.FlagRateLimit, "l", 3, "rate limit")
 	// парсим переданные серверу аргументы в зарегистрированные переменные
 	flag.Parse()
 	if cfg.envRunAddr != "" {
@@ -58,6 +63,9 @@ func ParseFlags() ClientFlags {
 		cfg.FlagHashKey = cfg.envHashKey
 	} else if envHashKey := os.Getenv("KEY"); envHashKey != "" {
 		cfg.FlagHashKey = envHashKey
+	}
+	if cfg.envRateLimit != 0 {
+		cfg.FlagRateLimit = cfg.envRateLimit
 	}
 	return cfg
 }
