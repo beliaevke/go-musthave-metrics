@@ -19,7 +19,7 @@ type ServerFlags struct {
 	FileStoragePath     string `env:"FILE_STORAGE_PATH"`
 	EnvRestore          bool   `env:"RESTORE"`
 	DatabaseDSN         string `env:"DATABASE_DSN"`
-	envHashKey          string `env:"KEY"`
+	EnvHashKey          string `env:"KEY"`
 }
 
 // parseFlags обрабатывает аргументы командной строки
@@ -70,10 +70,10 @@ func ParseFlags() ServerFlags {
 	if cfg.DatabaseDSN != "" {
 		cfg.FlagDatabaseDSN = cfg.DatabaseDSN
 	}
-	if cfg.envHashKey != "" {
-		cfg.FlagHashKey = cfg.envHashKey
-	} else if envHashKey := os.Getenv("KEY"); envHashKey != "" {
-		cfg.FlagHashKey = envHashKey
+	if cfg.EnvHashKey != "" {
+		cfg.FlagHashKey = cfg.EnvHashKey
+	} else if EnvHashKey := os.Getenv("KEY"); EnvHashKey != "" {
+		cfg.FlagHashKey = EnvHashKey
 	}
 	return *cfg
 }
