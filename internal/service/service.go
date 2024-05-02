@@ -8,6 +8,8 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
+
+	"musthave-metrics/internal/logger"
 )
 
 type HashData struct {
@@ -45,16 +47,19 @@ func (hd HashData) WithHashVerification(h http.Handler) http.Handler {
 		if requestHash != "" && hd.Key != "" {
 			data, err := io.ReadAll(r.Body)
 			if err != nil {
+				logger.Warnf("HashSHA256 error: " + err.Error())
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			originalHash := getHash(data, hd.Key)
 			decodeHash, err := base64.URLEncoding.DecodeString(requestHash)
 			if err != nil {
+				logger.Warnf("HashSHA256 error: " + err.Error())
 				http.Error(w, err.Error(), http.StatusBadRequest)
 				return
 			}
 			if !hmac.Equal(originalHash, decodeHash) {
+				logger.Warnf("HashSHA256 error: hash not equal")
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
