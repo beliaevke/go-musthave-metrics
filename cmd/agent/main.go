@@ -4,13 +4,18 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"musthave-metrics/cmd/agent/client"
-	"musthave-metrics/handlers"
-	"musthave-metrics/internal/postgres"
 	"reflect"
 	"runtime"
 	"strconv"
+	"sync"
 	"time"
+
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/mem"
+
+	"musthave-metrics/cmd/agent/client"
+	"musthave-metrics/handlers"
+	"musthave-metrics/internal/postgres"
 )
 
 type agent struct {
@@ -22,8 +27,9 @@ type agent struct {
 func (agent *agent) run() {
 	agent.printAgentLog("Start")
 	agent.initMetrics()
-	agent.pollMetrics()
-	agent.reportMetrics()
+	go agent.pollMetrics()
+	go agent.pollUtilMetrics()
+	go agent.reportMetrics()
 	time.Sleep(30 * time.Second)
 	agent.printAgentLog("Stop")
 }
@@ -57,10 +63,19 @@ func (agent *agent) pollMetrics() {
 	time.AfterFunc(time.Duration(agent.client.PollInterval)*time.Second, f)
 }
 
+func (agent *agent) pollUtilMetrics() {
+	f := func() {
+		agent.setUtilMetrics()
+		agent.pollUtilMetrics()
+		agent.printMetricsLog("<= Util")
+	}
+	time.AfterFunc(time.Duration(agent.client.PollInterval)*time.Second, f)
+}
+
 func (agent *agent) reportMetrics() {
 	f := func() {
 		agent.pushMetrics()
-		agent.pushBatchMetrics()
+		agent.pushBatchMetricsWithWorkers()
 		agent.reportMetrics()
 		agent.printMetricsLog("=> Push")
 	}
@@ -112,7 +127,43 @@ func (agent *agent) pushBatchMetrics() {
 	}
 }
 
+func (agent *agent) pushBatchMetricsWithWorkers() {
+	numJobs := agent.client.RateLimit
+	// создаем буферизованный канал для принятия задач в воркер
+	jobs := make(chan int, numJobs)
+	// создаем буферизованный канал для отправки результатов
+	results := make(chan int, numJobs)
+	// создаем и запускаем 3 воркера, это и есть пул,
+	// передаем id, это для наглядности, канал задач и канал результатов
+	for w := 1; w <= 3; w++ {
+		go pushWorkerBatchMetrics(agent, w, jobs, results)
+	}
+	// в канал задач отправляем какие-то данные
+	// задач у нас 5, а воркера 3, значит одновременно решается только 3 задачи
+	for j := 1; j <= numJobs; j++ {
+		jobs <- j
+	}
+	// как вы помните, закрываем канал на стороне отправителя
+	close(jobs)
+	// забираем из канала результатов результаты
+	// можно присваивать переменной, или выводить на экран, но мы не будем
+	for a := 1; a <= numJobs; a++ {
+		<-results
+	}
+}
+
+func pushWorkerBatchMetrics(agent *agent, id int, jobs <-chan int, results chan<- int) {
+	for j := range jobs {
+		fmt.Println("рабочий процесс", id, "запущена задача", j)
+		agent.pushBatchMetrics()
+		fmt.Println("рабочий процесс", id, "закончена задача", j)
+		results <- j + 1
+	}
+}
+
 func (agent *agent) setMetrics() {
+	var mu sync.Mutex
+	mu.Lock()
 	// counter
 	agent.CounterMetrics["PollCount"] += 1
 	// gauge
@@ -121,6 +172,29 @@ func (agent *agent) setMetrics() {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 	setGaugeMemStatsMetrics(memStats, agent)
+	mu.Unlock()
+}
+
+func (agent *agent) setUtilMetrics() {
+	var mu sync.Mutex
+	// Util gauge
+	memstats, err := mem.VirtualMemory()
+	if err != nil {
+		agent.printErrorLog(err)
+		return
+	}
+	cpustat, err := cpu.Percent(0, false)
+	if err != nil {
+		agent.printErrorLog(err)
+		return
+	}
+	mu.Lock()
+	agent.GaugeMetrics["TotalMemory"] = strconv.FormatUint(memstats.Total, 10)
+	agent.GaugeMetrics["FreeMemory"] = strconv.FormatUint(memstats.Free, 10)
+	for i := 0; i < len(cpustat); i++ {
+		agent.GaugeMetrics["CPUutilization"+strconv.Itoa(i)] = strconv.FormatFloat(cpustat[i], 'g', -1, 64)
+	}
+	mu.Unlock()
 }
 
 func setGaugeMemStatsMetrics(s interface{}, agent *agent) {
