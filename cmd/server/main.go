@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"expvar"
+	"log"
 	"musthave-metrics/cmd/server/config"
 	"musthave-metrics/handlers"
 	"musthave-metrics/internal/compress"
@@ -28,7 +29,9 @@ func main() {
 	if cfg.FlagStoreInterval != 0 {
 		storeMetrics(cfg)
 	}
-	run(cfg)
+	if err := run(cfg); err != nil {
+		log.Fatal(err)
+	}
 	fmem, err := os.Create(cfg.FlagMemProfile)
 	if err != nil {
 		panic(err)
@@ -38,10 +41,6 @@ func main() {
 	if err := rpprof.WriteHeapProfile(fmem); err != nil {
 		panic(err)
 	}
-	/*if err := run(cfg); err != nil {
-		log.Fatal(err)
-	}
-	*/
 }
 
 func run(cfg config.ServerFlags) error {
