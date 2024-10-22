@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"musthave-metrics/cmd/agent/client"
 	"os"
 	"runtime"
 	rpprof "runtime/pprof"
@@ -52,9 +52,8 @@ func TestInitMetrics(t *testing.T) {
 }
 
 func BenchmarkSetGaugeMemStatsMetrics(b *testing.B) {
-	agent, err := newAgent()
-	if err != nil {
-		log.Fatal(err)
+	agent := &agent{
+		client: client.Locallink{},
 	}
 	agent.initMetrics()
 	var memStats runtime.MemStats
@@ -75,9 +74,8 @@ func BenchmarkSetGaugeMemStatsMetrics(b *testing.B) {
 }
 
 func BenchmarkSetGaugeMemStatsMetricsNew(b *testing.B) {
-	agent, err := newAgent()
-	if err != nil {
-		log.Fatal(err)
+	agent := &agent{
+		client: client.Locallink{},
 	}
 	agent.initMetrics()
 	var memStats runtime.MemStats
