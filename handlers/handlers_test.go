@@ -155,3 +155,10 @@ func testRequest(t *testing.T, ts *httptest.Server, method, path string, body io
 
 	return resp, string(respBody)
 }
+
+func BenchmarkAllMetricsHandler(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		AllMetricsHandler()
+	}
+}
