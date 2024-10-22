@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"expvar"
 	"musthave-metrics/cmd/server/config"
 	"musthave-metrics/handlers"
 	"musthave-metrics/internal/compress"
@@ -10,9 +10,14 @@ import (
 	"musthave-metrics/internal/postgres"
 	"musthave-metrics/internal/service"
 	"net/http"
+	"net/http/pprof"
+	"os"
+	"runtime"
+	rpprof "runtime/pprof"
 	"time"
 
 	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/middleware"
 )
 
 func main() {
@@ -23,9 +28,20 @@ func main() {
 	if cfg.FlagStoreInterval != 0 {
 		storeMetrics(cfg)
 	}
-	if err := run(cfg); err != nil {
+	run(cfg)
+	fmem, err := os.Create(cfg.FlagMemProfile)
+	if err != nil {
+		panic(err)
+	}
+	defer fmem.Close()
+	runtime.GC() // получаем статистику по использованию памяти
+	if err := rpprof.WriteHeapProfile(fmem); err != nil {
+		panic(err)
+	}
+	/*if err := run(cfg); err != nil {
 		log.Fatal(err)
 	}
+	*/
 }
 
 func run(cfg config.ServerFlags) error {
@@ -43,6 +59,7 @@ func run(cfg config.ServerFlags) error {
 	mux.Handle("/value/", valueHandler(cfg))
 	mux.Handle("/ping", handlers.PingDBHandler(cfg.FlagDatabaseDSN))
 	mux.Handle("/", handlers.AllMetricsHandler())
+	mux.Mount("/debug", middleware.Profiler())
 	return http.ListenAndServe(cfg.FlagRunAddr, mux)
 }
 
@@ -69,4 +86,32 @@ func valueHandler(cfg config.ServerFlags) http.Handler {
 		return handlers.GetValueDBHandler(ctx, cfg.FlagDatabaseDSN, cfg.FlagHashKey)
 	}
 	return handlers.GetValueJSONHandler()
+}
+
+func Profiler() http.Handler {
+	r := chi.NewRouter()
+	//r.Use(NoCache)
+
+	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, r.RequestURI+"/pprof/", http.StatusMovedPermanently)
+	})
+	r.HandleFunc("/pprof", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, r.RequestURI+"/", http.StatusMovedPermanently)
+	})
+
+	r.HandleFunc("/pprof/*", pprof.Index)
+	r.HandleFunc("/pprof/cmdline", pprof.Cmdline)
+	r.HandleFunc("/pprof/profile", pprof.Profile)
+	r.HandleFunc("/pprof/symbol", pprof.Symbol)
+	r.HandleFunc("/pprof/trace", pprof.Trace)
+	r.Handle("/vars", expvar.Handler())
+
+	r.Handle("/pprof/goroutine", pprof.Handler("goroutine"))
+	r.Handle("/pprof/threadcreate", pprof.Handler("threadcreate"))
+	r.Handle("/pprof/mutex", pprof.Handler("mutex"))
+	r.Handle("/pprof/heap", pprof.Handler("heap"))
+	r.Handle("/pprof/block", pprof.Handler("block"))
+	r.Handle("/pprof/allocs", pprof.Handler("allocs"))
+
+	return r
 }
