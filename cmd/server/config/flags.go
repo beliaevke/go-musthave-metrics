@@ -15,11 +15,13 @@ type ServerFlags struct {
 	FlagRestore         bool
 	FlagDatabaseDSN     string
 	FlagHashKey         string
+	FlagMemProfile      string
 	EnvStoreInterval    int    `env:"STORE_INTERVAL"`
 	FileStoragePath     string `env:"FILE_STORAGE_PATH"`
 	EnvRestore          bool   `env:"RESTORE"`
 	DatabaseDSN         string `env:"DATABASE_DSN"`
 	EnvHashKey          string `env:"KEY"`
+	MemProfile          string `env:"MEM_PROFILE"`
 }
 
 // parseFlags обрабатывает аргументы командной строки
@@ -49,6 +51,9 @@ func ParseFlags() ServerFlags {
 	// регистрируем переменную FlagHashKey
 	// как аргумент -k со значением "" по умолчанию
 	flag.StringVar(&cfg.FlagHashKey, "k", "", "hash key")
+	// регистрируем переменную FlagMemProfile
+	// как аргумент -mem со значением "profiles/base.pprof" по умолчанию
+	flag.StringVar(&cfg.FlagMemProfile, "mem", "profiles/base.pprof", "mem profile path")
 	// парсим переданные серверу аргументы в зарегистрированные переменные
 	flag.Parse()
 
@@ -74,6 +79,9 @@ func ParseFlags() ServerFlags {
 		cfg.FlagHashKey = cfg.EnvHashKey
 	} else if EnvHashKey := os.Getenv("KEY"); EnvHashKey != "" {
 		cfg.FlagHashKey = EnvHashKey
+	}
+	if MemProfile := os.Getenv("MEM_PROFILE"); MemProfile != "" {
+		cfg.FlagMemProfile = MemProfile
 	}
 	return *cfg
 }
