@@ -1,3 +1,4 @@
+// Пакет handlers предназначен для основных хендлеров.
 package handlers
 
 import (
@@ -24,12 +25,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// Metric хранит информацию о метрик.
 type Metric struct {
 	metricType  string
 	metricName  string
 	metricValue string
 }
 
+// MetricsJSON хранит информацию о JSON-описании метрик.
 type MetricsJSON struct {
 	ID    string   `json:"id"`              // имя метрики
 	MType string   `json:"type"`            // параметр, принимающий значение gauge или counter
@@ -42,6 +45,7 @@ type metricsContent struct {
 	Rowsc string
 }
 
+// UpdateHandler обновляет метрики.
 func UpdateHandler() http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		m := Metric{}
@@ -56,6 +60,7 @@ func UpdateHandler() http.Handler {
 	return http.HandlerFunc(fn)
 }
 
+// UpdateJSONHandler обновляет метрики в JSON.
 func UpdateJSONHandler(storeInterval int, fileStoragePath string) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -113,6 +118,7 @@ func UpdateJSONHandler(storeInterval int, fileStoragePath string) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
+// GetValueHandler получает значение метрики.
 func GetValueHandler() http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		m := Metric{}
@@ -131,6 +137,7 @@ func GetValueHandler() http.Handler {
 	return http.HandlerFunc(fn)
 }
 
+// GetValueHandler получает значение метрики в JSON.
 func GetValueJSONHandler() http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -199,6 +206,7 @@ func GetValueJSONHandler() http.Handler {
 	return http.HandlerFunc(fn)
 }
 
+// AllMetricsHandler выводит все метрики.
 func AllMetricsHandler() http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		content := metricsContent{
@@ -220,6 +228,7 @@ func AllMetricsHandler() http.Handler {
 	return http.HandlerFunc(fn)
 }
 
+// PingDBHandler проверяет работоспособность.
 func PingDBHandler(DatabaseDSN string) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		settings := postgres.NewPSQLStr(DatabaseDSN)
@@ -236,6 +245,7 @@ func PingDBHandler(DatabaseDSN string) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
+// UpdateJSONHandler обновляет метрики в СУБД.
 func UpdateDBHandler(ctx context.Context, DatabaseDSN string, HashKey string) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		settings := postgres.NewPSQLStr(DatabaseDSN)
@@ -301,6 +311,7 @@ func UpdateDBHandler(ctx context.Context, DatabaseDSN string, HashKey string) ht
 	return http.HandlerFunc(fn)
 }
 
+// UpdateJSONHandler обновляет метрики в СУБД.
 func UpdateBatchDBHandler(DatabaseDSN string) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		if DatabaseDSN == "" {
@@ -357,6 +368,7 @@ func UpdateBatchDBHandler(DatabaseDSN string) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
+// GetValueDBHandler получает метрики из СУБД.
 func GetValueDBHandler(ctx context.Context, DatabaseDSN string, HashKey string) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		settings := postgres.NewPSQLStr(DatabaseDSN)
@@ -472,6 +484,7 @@ func repo(metricName string, metricType string, metricValue string) (repository 
 	return repository
 }
 
+// UpdateMetrics обновляет метрики.
 func UpdateMetrics(locallink client.Locallink, mtype string, mname string, mvalue string) error {
 	client := &http.Client{}
 	url := service.MakeURL(locallink.RunAddr, locallink.Method, mtype, mname, mvalue)
@@ -493,6 +506,7 @@ func UpdateMetrics(locallink client.Locallink, mtype string, mname string, mvalu
 	return nil
 }
 
+// UpdateBatchMetrics обновляет метрики.
 func UpdateBatchMetrics(locallink client.Locallink, metrics []postgres.Metrics) error {
 	client := &http.Client{}
 	url := service.MakeBatchUpdatesURL(locallink.RunAddr)
@@ -549,6 +563,7 @@ func metricstemplate() string {
 </html>`
 }
 
+// RestoreMetrics восстанавливает значения метрик.
 func RestoreMetrics(fileStoragePath string) {
 	m, err := readFile(fileStoragePath)
 	if err != nil {
@@ -587,6 +602,7 @@ func restoreMetric(metric MetricsJSON, line int) {
 	}
 }
 
+// StoreMetrics сохраняет значения метрик.
 func StoreMetrics(fileStoragePath string) {
 	data, err := json.MarshalIndent(allMetricsJSON(), "", "   ")
 	if err != nil {

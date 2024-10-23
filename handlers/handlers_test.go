@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"fmt"
 	"io"
+	"musthave-metrics/cmd/agent/config"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -69,7 +71,7 @@ func TestIsValid(t *testing.T) {
 	}
 }
 
-func TestUpdate(t *testing.T) {
+func TestUpdateHandler(t *testing.T) {
 	testCases := []struct {
 		name           string
 		pattern        string
@@ -101,18 +103,34 @@ func TestUpdate(t *testing.T) {
 
 			r1 := chi.NewRouter()
 			r1.Handle(tc.pattern, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				_, err := w.Write([]byte(tc.expectedBody))
-				if err != nil {
-					t.Errorf("Write failed: %v", err)
+				m := Metric{}
+				w.Header().Set("Content-Type", "text/plain")
+				m.setValue(r)
+				if !m.isValid() || m.add() != nil {
+					w.WriteHeader(http.StatusBadRequest)
+				} else {
+					w.WriteHeader(http.StatusOK)
+					_, err := w.Write([]byte(tc.expectedBody))
+					if err != nil {
+						t.Errorf("Write failed: %v", err)
+					}
 				}
 			}))
 
 			// Test that HandleFunc also handles method patterns
 			r2 := chi.NewRouter()
 			r2.HandleFunc(tc.pattern, func(w http.ResponseWriter, r *http.Request) {
-				_, err := w.Write([]byte(tc.expectedBody))
-				if err != nil {
-					t.Errorf("Write failed: %v", err)
+				m := Metric{}
+				w.Header().Set("Content-Type", "text/plain")
+				m.setValue(r)
+				if !m.isValid() || m.add() != nil {
+					w.WriteHeader(http.StatusBadRequest)
+				} else {
+					w.WriteHeader(http.StatusOK)
+					_, err := w.Write([]byte(tc.expectedBody))
+					if err != nil {
+						t.Errorf("Write failed: %v", err)
+					}
 				}
 			})
 
@@ -161,4 +179,18 @@ func BenchmarkAllMetricsHandler(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		AllMetricsHandler()
 	}
+}
+
+func ExampleAllMetricsHandler() {
+
+	// Получаем конфигурацию
+	cfg := config.ParseFlags()
+
+	// Выполняем вызов основной страницы
+	resp, err := http.Get("http://" + cfg.FlagRunAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	defer resp.Body.Close()
 }
