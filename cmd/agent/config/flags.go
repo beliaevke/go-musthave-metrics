@@ -14,11 +14,13 @@ type ClientFlags struct {
 	FlagPollInterval   int
 	FlagHashKey        string
 	FlagRateLimit      int
+	FlagMemProfile     string
 	envRunAddr         string `env:"ADDRESS"`
 	envReportInterval  int    `env:"REPORT_INTERVAL"`
 	envPollInterval    int    `env:"POLL_INTERVAL"`
 	envHashKey         string `env:"KEY"`
 	envRateLimit       int    `env:"RATE_LIMIT"`
+	MemProfile         string `env:"MEM_PROFILE"`
 }
 
 // parseFlags обрабатывает аргументы командной строки
@@ -46,6 +48,9 @@ func ParseFlags() ClientFlags {
 	// регистрируем переменную FlagRateLimit
 	// как аргумент -l со значением 1 по умолчанию
 	flag.IntVar(&cfg.FlagRateLimit, "l", 1, "rate limit")
+	// регистрируем переменную FlagMemProfile
+	// как аргумент -mem со значением "profiles/base.pprof" по умолчанию
+	flag.StringVar(&cfg.FlagMemProfile, "mem", "profiles/base.pprof", "mem profile path")
 	// парсим переданные серверу аргументы в зарегистрированные переменные
 	flag.Parse()
 	if cfg.envRunAddr != "" {
@@ -66,6 +71,9 @@ func ParseFlags() ClientFlags {
 	}
 	if cfg.envRateLimit != 0 {
 		cfg.FlagRateLimit = cfg.envRateLimit
+	}
+	if MemProfile := os.Getenv("MEM_PROFILE"); MemProfile != "" {
+		cfg.FlagMemProfile = MemProfile
 	}
 	return cfg
 }

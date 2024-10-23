@@ -1,7 +1,12 @@
 package main
 
 import (
+	"os"
+	"runtime"
+	rpprof "runtime/pprof"
 	"testing"
+
+	"musthave-metrics/cmd/agent/client"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -44,5 +49,49 @@ func TestInitMetrics(t *testing.T) {
 			assert.Equal(t, tt.agent.CounterMetrics, tt.wantCounterMetrics)
 			assert.Equal(t, tt.agent.GaugeMetrics, tt.wantGaugeMetrics)
 		})
+	}
+}
+
+func BenchmarkSetGaugeMemStatsMetrics(b *testing.B) {
+	agent := &agent{
+		client: client.Locallink{},
+	}
+	agent.initMetrics()
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+	fmem, err := os.Create("profiles/base1.pprof")
+	if err != nil {
+		panic(err)
+	}
+	defer fmem.Close()
+	runtime.GC() // получаем статистику по использованию памяти
+	if err := rpprof.WriteHeapProfile(fmem); err != nil {
+		panic(err)
+	}
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		setGaugeMemStatsMetrics(memStats, agent)
+	}
+}
+
+func BenchmarkSetGaugeMemStatsMetricsNew(b *testing.B) {
+	agent := &agent{
+		client: client.Locallink{},
+	}
+	agent.initMetrics()
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+	fmem, err := os.Create("profiles/res1.pprof")
+	if err != nil {
+		panic(err)
+	}
+	defer fmem.Close()
+	runtime.GC() // получаем статистику по использованию памяти
+	if err := rpprof.WriteHeapProfile(fmem); err != nil {
+		panic(err)
+	}
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		setGaugeMemStatsMetricsNew(memStats, agent)
 	}
 }
