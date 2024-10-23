@@ -1,11 +1,12 @@
 package main
 
 import (
-	"musthave-metrics/cmd/agent/client"
 	"os"
 	"runtime"
 	rpprof "runtime/pprof"
 	"testing"
+
+	"musthave-metrics/cmd/agent/client"
 
 	"github.com/stretchr/testify/assert"
 )

@@ -2,8 +2,9 @@ package client
 
 import (
 	"fmt"
-	"musthave-metrics/cmd/agent/config"
 	"time"
+
+	"musthave-metrics/cmd/agent/config"
 )
 
 type Locallink struct {
