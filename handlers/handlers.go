@@ -21,7 +21,7 @@ import (
 	"musthave-metrics/internal/storage"
 
 	"github.com/avast/retry-go/v4"
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

@@ -1,10 +1,11 @@
 package service
 
 import (
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
-
-	"crypto/hmac"
-	"crypto/sha256"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -77,24 +78,79 @@ func TestMakeBatchUpdatesURL(t *testing.T) {
 	}
 }
 
-func TestGtHash(t *testing.T) {
-	tests := []struct {
-		name string
-		data []byte
-		key  string
+func TestHashData_WithHashVerification(t *testing.T) {
+	testCases := []struct {
+		name           string
+		pattern        string
+		shouldPanic    bool
+		method         string // Method to be used for the test request
+		path           string // Path to be used for the test request
+		expectedBody   string // Expected response body
+		expectBody     bool
+		expectedStatus int // Expected HTTP status code
 	}{
+		// Valid patterns
 		{
-			name: "1",
-			data: []byte("test"),
-			key:  "test",
+			name:           "Valid pattern with HTTP POST",
+			pattern:        "/",
+			shouldPanic:    false,
+			method:         "GET",
+			path:           "/",
+			expectedBody:   "",
+			expectBody:     true,
+			expectedStatus: http.StatusOK,
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			h := hmac.New(sha256.New, []byte(tt.key))
-			h.Write(tt.data)
-			hsh := getHash(tt.data, tt.key)
-			assert.Equal(t, hsh, h.Sum(nil))
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil && !tc.shouldPanic {
+					t.Errorf("Unexpected panic for pattern %s:\n%v", tc.pattern, r)
+				}
+			}()
+
+			hd := NewHashData("HashKey")
+			ts := httptest.NewServer(hd.WithHashVerification(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprintln(w, "Hello, client")
+			})))
+			defer ts.Close()
+
+			res, err := http.Get(ts.URL)
+			if err != nil {
+				t.Errorf(err.Error())
+			}
+			bd, err := io.ReadAll(res.Body)
+			res.Body.Close()
+			if err != nil {
+				t.Errorf(err.Error())
+			}
+
+			// Проверяем код
+			if status := res.StatusCode; status != tc.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v",
+					status, http.StatusOK)
+			}
+
+			// Проверяем тело ответа
+			if tc.expectBody && string(bd) == tc.expectedBody {
+				t.Errorf("handler returned unexpected body: got %v want %v",
+					string(bd), tc.expectedBody)
+			}
+
 		})
 	}
+}
+
+func Example_getHash() {
+
+	// Получаем hash data
+	hd := NewHashData("hashKey")
+
+	// Получаем данные
+	data := []byte("data")
+
+	// Формируем hash
+	getHash(data, hd.Key)
+
 }

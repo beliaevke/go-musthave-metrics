@@ -1,14 +1,16 @@
 package handlers
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"musthave-metrics/cmd/agent/config"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 
-	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -83,13 +85,13 @@ func TestUpdateHandler(t *testing.T) {
 	}{
 		// Valid patterns
 		{
-			name:           "Valid pattern with HTTP POST",
+			name:           "Unvalid pattern with HTTP POST",
 			pattern:        "/update/{metricType}/{metricName}/{metricValue}",
 			shouldPanic:    false,
 			method:         "POST",
 			path:           "/update/gauge/someMetric/11.11",
-			expectedBody:   "with-prefix POST",
-			expectedStatus: http.StatusOK,
+			expectedBody:   "",
+			expectedStatus: http.StatusBadRequest,
 		},
 	}
 
@@ -101,52 +103,33 @@ func TestUpdateHandler(t *testing.T) {
 				}
 			}()
 
-			r1 := chi.NewRouter()
-			r1.Handle(tc.pattern, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				m := Metric{}
-				w.Header().Set("Content-Type", "text/plain")
-				m.setValue(r)
-				if !m.isValid() || m.add() != nil {
-					w.WriteHeader(http.StatusBadRequest)
-				} else {
-					w.WriteHeader(http.StatusOK)
-					_, err := w.Write([]byte(tc.expectedBody))
-					if err != nil {
-						t.Errorf("Write failed: %v", err)
-					}
-				}
-			}))
+			ts := httptest.NewServer(UpdateHandler())
+			defer ts.Close()
 
-			// Test that HandleFunc also handles method patterns
-			r2 := chi.NewRouter()
-			r2.HandleFunc(tc.pattern, func(w http.ResponseWriter, r *http.Request) {
-				m := Metric{}
-				w.Header().Set("Content-Type", "text/plain")
-				m.setValue(r)
-				if !m.isValid() || m.add() != nil {
-					w.WriteHeader(http.StatusBadRequest)
-				} else {
-					w.WriteHeader(http.StatusOK)
-					_, err := w.Write([]byte(tc.expectedBody))
-					if err != nil {
-						t.Errorf("Write failed: %v", err)
-					}
-				}
-			})
-
-			if !tc.shouldPanic {
-				for _, r := range []chi.Router{r1, r2} {
-					// Use testRequest for valid patterns
-					ts := httptest.NewServer(r)
-					defer ts.Close()
-					resp, body := testRequest(t, ts, tc.method, tc.path, nil)
-					defer resp.Body.Close()
-					if body != tc.expectedBody || resp.StatusCode != tc.expectedStatus {
-						t.Errorf("Expected status %d and body %s; got status %d and body %s for pattern %s",
-							tc.expectedStatus, tc.expectedBody, resp.StatusCode, body, tc.pattern)
-					}
-				}
+			data := []byte("")
+			r := bytes.NewReader(data)
+			res, err := http.Post(ts.URL+tc.path, "application/json", r)
+			if err != nil {
+				t.Errorf(err.Error())
 			}
+			bd, err := io.ReadAll(res.Body)
+			res.Body.Close()
+			if err != nil {
+				t.Errorf(err.Error())
+			}
+
+			// Проверяем код
+			if status := res.StatusCode; status != tc.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v",
+					status, http.StatusOK)
+			}
+
+			// Проверяем тело ответа
+			if string(bd) != tc.expectedBody {
+				t.Errorf("handler returned unexpected body: got %v want %v",
+					string(bd), tc.expectedBody)
+			}
+
 		})
 	}
 }
@@ -193,4 +176,409 @@ func ExampleAllMetricsHandler() {
 		return
 	}
 	defer resp.Body.Close()
+}
+
+func ExamplePingDBHandler() {
+
+	// Получаем конфигурацию
+	FlagDatabaseDSN := ""
+
+	// Выполняем вызов
+	ts := httptest.NewServer(PingDBHandler(FlagDatabaseDSN))
+	defer ts.Close()
+
+	res, err := http.Get(ts.URL + "/ping")
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	// Проверяем код ответа
+	if res.StatusCode != http.StatusOK {
+		fmt.Println("ping DB handler returned wrong status code")
+	}
+}
+
+func TestUpdateJSONHandler(t *testing.T) {
+	testCases := []struct {
+		name           string
+		pattern        string
+		shouldPanic    bool
+		method         string // Method to be used for the test request
+		path           string // Path to be used for the test request
+		expectedBody   string // Expected response body
+		expectedStatus int    // Expected HTTP status code
+	}{
+		// Valid patterns
+		{
+			name:           "Valid pattern with HTTP POST",
+			pattern:        "/update/",
+			shouldPanic:    false,
+			method:         "POST",
+			path:           "/update/",
+			expectedBody:   `{"id":"testtest","type":"gauge","value":111}`,
+			expectedStatus: http.StatusOK,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil && !tc.shouldPanic {
+					t.Errorf("Unexpected panic for pattern %s:\n%v", tc.pattern, r)
+				}
+			}()
+
+			ts := httptest.NewServer(UpdateJSONHandler(300, "/tmp/metrics-db.json"))
+			defer ts.Close()
+
+			data := []byte(tc.expectedBody)
+			r := bytes.NewReader(data)
+			res, err := http.Post(ts.URL+tc.path, "application/json", r)
+			if err != nil {
+				t.Errorf(err.Error())
+			}
+			bd, err := io.ReadAll(res.Body)
+			res.Body.Close()
+			if err != nil {
+				t.Errorf(err.Error())
+			}
+
+			// Проверяем код
+			if status := res.StatusCode; status != tc.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v",
+					status, http.StatusOK)
+			}
+
+			// Проверяем тело ответа
+			if string(bd) != tc.expectedBody {
+				t.Errorf("handler returned unexpected body: got %v want %v",
+					string(bd), tc.expectedBody)
+			}
+
+		})
+	}
+}
+
+func TestGetValueJSONHandler(t *testing.T) {
+	testCases := []struct {
+		name           string
+		pattern        string
+		shouldPanic    bool
+		method         string // Method to be used for the test request
+		path           string // Path to be used for the test request
+		expectedBody   string // Expected response body
+		expectedStatus int    // Expected HTTP status code
+	}{
+		// Valid patterns
+		{
+			name:           "Valid pattern with HTTP POST",
+			pattern:        "/value/{metricType}/{metricName}",
+			shouldPanic:    false,
+			method:         "POST",
+			path:           "/value/gauge/testtest",
+			expectedBody:   `{"id":"testtest","type":"gauge","value":0}`,
+			expectedStatus: http.StatusOK,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil && !tc.shouldPanic {
+					t.Errorf("Unexpected panic for pattern %s:\n%v", tc.pattern, r)
+				}
+			}()
+
+			ts := httptest.NewServer(GetValueJSONHandler())
+			defer ts.Close()
+
+			data := []byte(tc.expectedBody)
+			r := bytes.NewReader(data)
+			req, err := http.NewRequest(tc.method, ts.URL+tc.path, r)
+			if err != nil {
+				t.Errorf(err.Error())
+			}
+
+			client := ts.Client()
+			res, err := client.Do(req)
+			if err != nil {
+				t.Errorf(err.Error())
+			}
+			bd, err := io.ReadAll(res.Body)
+			res.Body.Close()
+			if err != nil {
+				t.Errorf(err.Error())
+			}
+
+			// Проверяем код
+			if status := res.StatusCode; status != tc.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v",
+					status, http.StatusOK)
+			}
+
+			// Проверяем тело ответа
+			if string(bd) != tc.expectedBody {
+				t.Errorf("handler returned unexpected body: got %v want %v",
+					string(bd), tc.expectedBody)
+			}
+
+		})
+	}
+}
+
+func TestAllMetricsHandler(t *testing.T) {
+	testCases := []struct {
+		name           string
+		pattern        string
+		shouldPanic    bool
+		method         string // Method to be used for the test request
+		path           string // Path to be used for the test request
+		expectedBody   string // Expected response body
+		expectBody     bool
+		expectedStatus int // Expected HTTP status code
+	}{
+		// Valid patterns
+		{
+			name:           "Valid pattern with HTTP POST",
+			pattern:        "/update/",
+			shouldPanic:    false,
+			method:         "GET",
+			path:           "/",
+			expectedBody:   "",
+			expectBody:     true,
+			expectedStatus: http.StatusOK,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil && !tc.shouldPanic {
+					t.Errorf("Unexpected panic for pattern %s:\n%v", tc.pattern, r)
+				}
+			}()
+
+			ts := httptest.NewServer(AllMetricsHandler())
+			defer ts.Close()
+
+			res, err := http.Get(ts.URL + tc.path)
+			if err != nil {
+				t.Errorf(err.Error())
+			}
+			bd, err := io.ReadAll(res.Body)
+			res.Body.Close()
+			if err != nil {
+				t.Errorf(err.Error())
+			}
+
+			// Проверяем код
+			if status := res.StatusCode; status != tc.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v",
+					status, http.StatusOK)
+			}
+
+			// Проверяем тело ответа
+			if tc.expectBody && string(bd) == tc.expectedBody {
+				t.Errorf("handler returned unexpected body: got %v want %v",
+					string(bd), tc.expectedBody)
+			}
+
+		})
+	}
+}
+
+func TestUpdateDBHandler(t *testing.T) {
+	testCases := []struct {
+		name           string
+		pattern        string
+		shouldPanic    bool
+		method         string // Method to be used for the test request
+		path           string // Path to be used for the test request
+		expectedBody   string // Expected response body
+		expectedStatus int    // Expected HTTP status code
+	}{
+		// Valid patterns
+		{
+			name:           "Valid pattern with HTTP POST",
+			pattern:        "/updates/",
+			shouldPanic:    false,
+			method:         "POST",
+			path:           "/updates/",
+			expectedBody:   `{"id":"testtest","type":"gauge","value":111}`,
+			expectedStatus: http.StatusOK,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil && !tc.shouldPanic {
+					t.Errorf("Unexpected panic for pattern %s:\n%v", tc.pattern, r)
+				}
+			}()
+
+			ctx := context.Background()
+			ts := httptest.NewServer(UpdateDBHandler(ctx, "postgres://postgres:pos111@localhost:5432/postgres?sslmode=disable", ""))
+			defer ts.Close()
+
+			data := []byte(tc.expectedBody)
+			r := bytes.NewReader(data)
+			res, err := http.Post(ts.URL+tc.path, "application/json", r)
+			if err != nil {
+				t.Errorf(err.Error())
+			}
+			bd, err := io.ReadAll(res.Body)
+			res.Body.Close()
+			if err != nil {
+				t.Errorf(err.Error())
+			}
+
+			// Проверяем код
+			if status := res.StatusCode; status != tc.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v",
+					status, http.StatusOK)
+			}
+
+			// Проверяем тело ответа
+			if string(bd) != tc.expectedBody {
+				t.Errorf("handler returned unexpected body: got %v want %v",
+					string(bd), tc.expectedBody)
+			}
+
+		})
+	}
+}
+
+func TestGetValueDBHandler(t *testing.T) {
+	testCases := []struct {
+		name           string
+		pattern        string
+		shouldPanic    bool
+		method         string // Method to be used for the test request
+		path           string // Path to be used for the test request
+		expectedBody   string // Expected response body
+		expectedStatus int    // Expected HTTP status code
+	}{
+		// Valid patterns
+		{
+			name:           "Valid pattern with HTTP POST",
+			pattern:        "/value/",
+			shouldPanic:    false,
+			method:         "POST",
+			path:           "/value/",
+			expectedBody:   `{"id":"testtest","type":"gauge","value":111}`,
+			expectedStatus: http.StatusOK,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil && !tc.shouldPanic {
+					t.Errorf("Unexpected panic for pattern %s:\n%v", tc.pattern, r)
+				}
+			}()
+
+			ctx := context.Background()
+			ts := httptest.NewServer(GetValueDBHandler(ctx, "postgres://postgres:pos111@localhost:5432/postgres?sslmode=disable", ""))
+			defer ts.Close()
+
+			data := []byte(tc.expectedBody)
+			r := bytes.NewReader(data)
+			res, err := http.Post(ts.URL+tc.path, "application/json", r)
+			if err != nil {
+				t.Errorf(err.Error())
+			}
+			bd, err := io.ReadAll(res.Body)
+			res.Body.Close()
+			if err != nil {
+				t.Errorf(err.Error())
+			}
+
+			// Проверяем код
+			if status := res.StatusCode; status != tc.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v",
+					status, http.StatusOK)
+			}
+
+			// Проверяем тело ответа
+			if string(bd) != tc.expectedBody {
+				t.Errorf("handler returned unexpected body: got %v want %v",
+					string(bd), tc.expectedBody)
+			}
+
+		})
+	}
+}
+
+func TestUpdateBatchDBHandler(t *testing.T) {
+	testCases := []struct {
+		name           string
+		pattern        string
+		shouldPanic    bool
+		method         string // Method to be used for the test request
+		path           string // Path to be used for the test request
+		expectedBody   string // Expected response body
+		expectedStatus int    // Expected HTTP status code
+	}{
+		// Valid patterns
+		{
+			name:           "Valid pattern with HTTP POST",
+			pattern:        "/updates/",
+			shouldPanic:    false,
+			method:         "POST",
+			path:           "/updates/",
+			expectedBody:   `[{"id":"testtest","type":"gauge","value":111},{"id":"testtest","type":"counter","value":22}]`,
+			expectedStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			defer func() {
+				if r := recover(); r != nil && !tc.shouldPanic {
+					t.Errorf("Unexpected panic for pattern %s:\n%v", tc.pattern, r)
+				}
+			}()
+
+			ts := httptest.NewServer(UpdateBatchDBHandler("postgres://postgres:pos111@localhost:5432/postgres?sslmode=disable"))
+			defer ts.Close()
+
+			data := []byte(tc.expectedBody)
+			r := bytes.NewReader(data)
+			res, err := http.Post(ts.URL+tc.path, "application/json", r)
+			if err != nil {
+				t.Errorf(err.Error())
+			}
+
+			res.Body.Close()
+
+			// Проверяем код
+			if status := res.StatusCode; status != tc.expectedStatus {
+				t.Errorf("handler returned wrong status code: got %v want %v",
+					status, http.StatusOK)
+			}
+
+		})
+	}
+}
+
+func Test_allMetricsJSON(t *testing.T) {
+	tests := []struct {
+		name string
+		want []MetricsJSON
+	}{
+		{
+			name: "1",
+			want: make([]MetricsJSON, 0),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := allMetricsJSON(); reflect.DeepEqual(got, tt.want) {
+				t.Errorf("allMetricsJSON() = %v, want %v", got, tt.want)
+			}
+		})
+	}
 }

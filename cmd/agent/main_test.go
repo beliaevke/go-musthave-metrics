@@ -1,12 +1,11 @@
 package main
 
 import (
+	"musthave-metrics/cmd/agent/client"
 	"os"
 	"runtime"
 	rpprof "runtime/pprof"
 	"testing"
-
-	"musthave-metrics/cmd/agent/client"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -165,5 +164,22 @@ func BenchmarkSetGaugeMemStatsMetricsNew(b *testing.B) {
 	b.ReportAllocs()
 	for i := 0; i < b.N; i++ {
 		setGaugeMemStatsMetricsNew(memStats, agent)
+	}
+}
+
+func Test_agent_pushBatchMetrics(t *testing.T) {
+	tests := []struct {
+		name  string
+		agent *agent
+	}{
+		{name: "1",
+			agent: &agent{client: client.Locallink{}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.agent.pushBatchMetrics()
+		})
 	}
 }
