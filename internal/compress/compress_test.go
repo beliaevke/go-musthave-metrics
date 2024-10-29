@@ -47,12 +47,12 @@ func TestWithGzipEncoding(t *testing.T) {
 
 			res, err := http.Get(ts.URL)
 			if err != nil {
-				t.Errorf(err.Error())
+				t.Errorf("Unexpected error")
 			}
 			bd, err := io.ReadAll(res.Body)
 			res.Body.Close()
 			if err != nil {
-				t.Errorf(err.Error())
+				t.Errorf("Unexpected error")
 			}
 
 			// Проверяем код

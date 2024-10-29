@@ -5,11 +5,13 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"musthave-metrics/cmd/agent/config"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"testing"
+
+	"musthave-metrics/cmd/agent/config"
+	serverconfig "musthave-metrics/cmd/server/config"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -110,12 +112,12 @@ func TestUpdateHandler(t *testing.T) {
 			r := bytes.NewReader(data)
 			res, err := http.Post(ts.URL+tc.path, "application/json", r)
 			if err != nil {
-				t.Errorf(err.Error())
+				t.Errorf("Unexpected error")
 			}
 			bd, err := io.ReadAll(res.Body)
 			res.Body.Close()
 			if err != nil {
-				t.Errorf(err.Error())
+				t.Errorf("Unexpected error")
 			}
 
 			// Проверяем код
@@ -181,10 +183,10 @@ func ExampleAllMetricsHandler() {
 func ExamplePingDBHandler() {
 
 	// Получаем конфигурацию
-	FlagDatabaseDSN := ""
+	cfg := serverconfig.ParseFlags()
 
 	// Выполняем вызов
-	ts := httptest.NewServer(PingDBHandler(FlagDatabaseDSN))
+	ts := httptest.NewServer(PingDBHandler(cfg.FlagDatabaseDSN))
 	defer ts.Close()
 
 	res, err := http.Get(ts.URL + "/ping")
@@ -192,6 +194,7 @@ func ExamplePingDBHandler() {
 		fmt.Println(err)
 		return
 	}
+	defer res.Body.Close()
 
 	// Проверяем код ответа
 	if res.StatusCode != http.StatusOK {
@@ -236,12 +239,12 @@ func TestUpdateJSONHandler(t *testing.T) {
 			r := bytes.NewReader(data)
 			res, err := http.Post(ts.URL+tc.path, "application/json", r)
 			if err != nil {
-				t.Errorf(err.Error())
+				t.Errorf("Unexpected error")
 			}
 			bd, err := io.ReadAll(res.Body)
 			res.Body.Close()
 			if err != nil {
-				t.Errorf(err.Error())
+				t.Errorf("Unexpected error")
 			}
 
 			// Проверяем код
@@ -277,7 +280,7 @@ func TestGetValueJSONHandler(t *testing.T) {
 			shouldPanic:    false,
 			method:         "POST",
 			path:           "/value/gauge/testtest",
-			expectedBody:   `{"id":"testtest","type":"gauge","value":0}`,
+			expectedBody:   `{"id":"testtest","type":"gauge","value":111}`,
 			expectedStatus: http.StatusOK,
 		},
 	}
@@ -297,18 +300,18 @@ func TestGetValueJSONHandler(t *testing.T) {
 			r := bytes.NewReader(data)
 			req, err := http.NewRequest(tc.method, ts.URL+tc.path, r)
 			if err != nil {
-				t.Errorf(err.Error())
+				t.Errorf("Unexpected error")
 			}
 
 			client := ts.Client()
 			res, err := client.Do(req)
 			if err != nil {
-				t.Errorf(err.Error())
+				t.Errorf("Unexpected error")
 			}
 			bd, err := io.ReadAll(res.Body)
 			res.Body.Close()
 			if err != nil {
-				t.Errorf(err.Error())
+				t.Errorf("Unexpected error")
 			}
 
 			// Проверяем код
@@ -364,12 +367,12 @@ func TestAllMetricsHandler(t *testing.T) {
 
 			res, err := http.Get(ts.URL + tc.path)
 			if err != nil {
-				t.Errorf(err.Error())
+				t.Errorf("Unexpected error")
 			}
 			bd, err := io.ReadAll(res.Body)
 			res.Body.Close()
 			if err != nil {
-				t.Errorf(err.Error())
+				t.Errorf("Unexpected error")
 			}
 
 			// Проверяем код
@@ -418,20 +421,21 @@ func TestUpdateDBHandler(t *testing.T) {
 				}
 			}()
 
+			cfg := serverconfig.ParseFlags()
 			ctx := context.Background()
-			ts := httptest.NewServer(UpdateDBHandler(ctx, "postgres://postgres:pos111@localhost:5432/postgres?sslmode=disable", ""))
+			ts := httptest.NewServer(UpdateDBHandler(ctx, cfg.FlagDatabaseDSN, ""))
 			defer ts.Close()
 
 			data := []byte(tc.expectedBody)
 			r := bytes.NewReader(data)
 			res, err := http.Post(ts.URL+tc.path, "application/json", r)
 			if err != nil {
-				t.Errorf(err.Error())
+				t.Errorf("Unexpected error")
 			}
 			bd, err := io.ReadAll(res.Body)
 			res.Body.Close()
 			if err != nil {
-				t.Errorf(err.Error())
+				t.Errorf("Unexpected error")
 			}
 
 			// Проверяем код
@@ -480,20 +484,21 @@ func TestGetValueDBHandler(t *testing.T) {
 				}
 			}()
 
+			cfg := serverconfig.ParseFlags()
 			ctx := context.Background()
-			ts := httptest.NewServer(GetValueDBHandler(ctx, "postgres://postgres:pos111@localhost:5432/postgres?sslmode=disable", ""))
+			ts := httptest.NewServer(GetValueDBHandler(ctx, cfg.DatabaseDSN, ""))
 			defer ts.Close()
 
 			data := []byte(tc.expectedBody)
 			r := bytes.NewReader(data)
 			res, err := http.Post(ts.URL+tc.path, "application/json", r)
 			if err != nil {
-				t.Errorf(err.Error())
+				t.Errorf("Unexpected error")
 			}
 			bd, err := io.ReadAll(res.Body)
 			res.Body.Close()
 			if err != nil {
-				t.Errorf(err.Error())
+				t.Errorf("Unexpected error")
 			}
 
 			// Проверяем код
@@ -542,14 +547,15 @@ func TestUpdateBatchDBHandler(t *testing.T) {
 				}
 			}()
 
-			ts := httptest.NewServer(UpdateBatchDBHandler("postgres://postgres:pos111@localhost:5432/postgres?sslmode=disable"))
+			cfg := serverconfig.ParseFlags()
+			ts := httptest.NewServer(UpdateBatchDBHandler(cfg.DatabaseDSN))
 			defer ts.Close()
 
 			data := []byte(tc.expectedBody)
 			r := bytes.NewReader(data)
 			res, err := http.Post(ts.URL+tc.path, "application/json", r)
 			if err != nil {
-				t.Errorf(err.Error())
+				t.Errorf("Unexpected error")
 			}
 
 			res.Body.Close()
