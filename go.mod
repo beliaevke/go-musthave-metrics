@@ -1,9 +1,13 @@
 module musthave-metrics
 
-go 1.22.0
+go 1.22.1
+
+toolchain go1.23.1
 
 require (
+	github.com/alexkohler/nakedret/v2 v2.0.5
 	github.com/avast/retry-go/v4 v4.5.1
+	github.com/breml/bidichk v0.3.2
 	github.com/caarlos0/env v3.5.0+incompatible
 	github.com/caarlos0/env/v6 v6.10.1
 	github.com/go-chi/chi v1.5.5
@@ -14,6 +18,8 @@ require (
 	github.com/shirou/gopsutil/v3 v3.24.4
 	github.com/stretchr/testify v1.9.0
 	go.uber.org/zap v1.27.0
+	golang.org/x/tools v0.26.0
+	honnef.co/go/tools v0.5.1
 )
 
 require (
@@ -34,10 +40,10 @@ require (
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.28.0 // indirect
-	golang.org/x/net v0.30.0 // indirect
+	golang.org/x/exp/typeparams v0.0.0-20231108232855-2478ac86f678 // indirect
+	golang.org/x/mod v0.21.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
 	golang.org/x/sys v0.26.0 // indirect
 	golang.org/x/text v0.19.0 // indirect
-	golang.org/x/tools v0.26.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

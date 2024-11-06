@@ -119,9 +119,9 @@ func (agent *agent) pushBatchMetrics() {
 		)
 	}
 	for name, val := range agent.GaugeMetrics {
-		gaugeValue, err := strconv.ParseFloat(val, 64)
-		if err != nil {
-			agent.printErrorLog(err)
+		gaugeValue, errprs := strconv.ParseFloat(val, 64)
+		if errprs != nil {
+			agent.printErrorLog(errprs)
 			continue
 		}
 		metrics = append(metrics,

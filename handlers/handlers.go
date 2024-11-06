@@ -1,4 +1,4 @@
-// Пакет handlers предназначен для основных хендлеров.
+// Package handlers предназначен для основных хендлеров.
 package handlers
 
 import (
@@ -72,10 +72,10 @@ func UpdateJSONHandler(storeInterval int, fileStoragePath string) http.Handler {
 		}
 		if r.Method == http.MethodPost && n != 0 {
 			var metric MetricsJSON
-			err := retry.Do(func() error {
+			err = retry.Do(func() error {
 				// десериализуем JSON в Visitor
-				if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
-					return err
+				if errjson := json.Unmarshal(buf.Bytes(), &metric); err != nil {
+					return errjson
 				}
 				return nil
 			},
@@ -137,7 +137,7 @@ func GetValueHandler() http.Handler {
 	return http.HandlerFunc(fn)
 }
 
-// GetValueHandler получает значение метрики в JSON.
+// GetValueJSONHandler получает значение метрики в JSON.
 func GetValueJSONHandler() http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -149,10 +149,10 @@ func GetValueJSONHandler() http.Handler {
 		}
 		if r.Method == http.MethodPost && n != 0 {
 			var metric MetricsJSON
-			err := retry.Do(func() error {
+			err = retry.Do(func() error {
 				// десериализуем JSON в Visitor
-				if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
-					return err
+				if errjson := json.Unmarshal(buf.Bytes(), &metric); err != nil {
+					return errjson
 				}
 				return nil
 			},
@@ -173,16 +173,16 @@ func GetValueJSONHandler() http.Handler {
 				val = "0"
 			}
 			if metric.MType == "gauge" {
-				gaugeValue, err := strconv.ParseFloat(val, 64)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
+				gaugeValue, errprs := strconv.ParseFloat(val, 64)
+				if errprs != nil {
+					http.Error(w, errprs.Error(), http.StatusInternalServerError)
 					return
 				}
 				metric.Value = &gaugeValue
 			} else if metric.MType == "counter" {
-				counterValue, err := strconv.ParseInt(val, 10, 64)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
+				counterValue, errprs := strconv.ParseInt(val, 10, 64)
+				if errprs != nil {
+					http.Error(w, errprs.Error(), http.StatusInternalServerError)
 					return
 				}
 				metric.Delta = &counterValue
@@ -245,7 +245,7 @@ func PingDBHandler(DatabaseDSN string) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
-// UpdateJSONHandler обновляет метрики в СУБД.
+// UpdateDBHandler обновляет метрики в СУБД.
 func UpdateDBHandler(ctx context.Context, DatabaseDSN string, HashKey string) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		settings := postgres.NewPSQLStr(DatabaseDSN)
@@ -265,7 +265,7 @@ func UpdateDBHandler(ctx context.Context, DatabaseDSN string, HashKey string) ht
 		}
 		if r.Method == http.MethodPost && n != 0 {
 			var metric MetricsJSON
-			err := retry.Do(func() error {
+			err = retry.Do(func() error {
 				// десериализуем JSON в Visitor
 				if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
 					return err
@@ -311,7 +311,7 @@ func UpdateDBHandler(ctx context.Context, DatabaseDSN string, HashKey string) ht
 	return http.HandlerFunc(fn)
 }
 
-// UpdateJSONHandler обновляет метрики в СУБД.
+// UpdateBatchDBHandler обновляет метрики в СУБД.
 func UpdateBatchDBHandler(DatabaseDSN string) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		if DatabaseDSN == "" {
@@ -335,7 +335,7 @@ func UpdateBatchDBHandler(DatabaseDSN string) http.Handler {
 		}
 		if r.Method == http.MethodPost && n != 0 {
 			var metrics []postgres.Metrics
-			err := retry.Do(func() error {
+			err = retry.Do(func() error {
 				// десериализуем JSON в Visitor
 				if err = json.Unmarshal(buf.Bytes(), &metrics); err != nil {
 					return err
@@ -388,7 +388,7 @@ func GetValueDBHandler(ctx context.Context, DatabaseDSN string, HashKey string) 
 		}
 		if r.Method == http.MethodPost && n != 0 {
 			var metric MetricsJSON
-			err := retry.Do(func() error {
+			err = retry.Do(func() error {
 				// десериализуем JSON в Visitor
 				if err = json.Unmarshal(buf.Bytes(), &metric); err != nil {
 					return err
@@ -410,16 +410,16 @@ func GetValueDBHandler(ctx context.Context, DatabaseDSN string, HashKey string) 
 				return
 			}
 			if metric.MType == "gauge" {
-				gaugeValue, err := strconv.ParseFloat(val, 64)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
+				gaugeValue, errprs := strconv.ParseFloat(val, 64)
+				if errprs != nil {
+					http.Error(w, errprs.Error(), http.StatusInternalServerError)
 					return
 				}
 				metric.Value = &gaugeValue
 			} else if metric.MType == "counter" {
-				counterValue, err := strconv.ParseInt(val, 10, 64)
-				if err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
+				counterValue, errprs := strconv.ParseInt(val, 10, 64)
+				if errprs != nil {
+					http.Error(w, errprs.Error(), http.StatusInternalServerError)
 					return
 				}
 				metric.Delta = &counterValue
