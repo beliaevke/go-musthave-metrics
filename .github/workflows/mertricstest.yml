@@ -51,7 +51,7 @@ jobs:
           chmod -R +x $GITHUB_WORKSPACE/.tools
           mv $GITHUB_WORKSPACE/.tools/metricstest /usr/local/bin/metricstest
           mv $GITHUB_WORKSPACE/.tools/random /usr/local/bin/random
-
+          
       - name: Setup go deps
         run: |
           go install golang.org/x/tools/cmd/goimports@latest

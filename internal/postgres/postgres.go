@@ -6,9 +6,10 @@ import (
 	"embed"
 	"errors"
 	"fmt"
-	"musthave-metrics/internal/logger"
 	"strconv"
 	"time"
+
+	"musthave-metrics/internal/logger"
 
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5"

@@ -47,6 +47,17 @@ func main() {
 		log.Fatal(err)
 	}
 	agent.run()
+	/*
+		fmem, err := os.Create("profiles/res.pprof")
+		if err != nil {
+			panic(err)
+		}
+		defer fmem.Close()
+		runtime.GC() // получаем статистику по использованию памяти
+		if err := rpprof.WriteHeapProfile(fmem); err != nil {
+			panic(err)
+		}
+	*/
 }
 
 func (agent *agent) initMetrics() {
@@ -172,6 +183,7 @@ func (agent *agent) setMetrics() {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 	setGaugeMemStatsMetrics(memStats, agent)
+	//setGaugeMemStatsMetricsNew(memStats, agent)
 	mu.Unlock()
 }
 
@@ -215,6 +227,25 @@ func setGaugeMemStatsMetrics(s interface{}, agent *agent) {
 			value = "0"
 		}
 		agent.GaugeMetrics[typField.Name] = value
+	}
+}
+
+func setGaugeMemStatsMetricsNew(s interface{}, agent *agent) {
+	valOf := reflect.ValueOf(s)
+	for i := 0; i < valOf.NumField(); i++ {
+		var value string
+		valField := valOf.Field(i)
+		switch valField.Interface().(type) {
+		case float64:
+			value = strconv.FormatFloat(valField.Interface().(float64), 'g', -1, 64)
+		case uint32:
+			value = fmt.Sprint(valField.Interface().(uint32))
+		case uint64:
+			value = strconv.FormatUint(valField.Interface().(uint64), 10)
+		default:
+			value = "0"
+		}
+		agent.GaugeMetrics[valOf.Type().Field(i).Name] = value
 	}
 }
 
