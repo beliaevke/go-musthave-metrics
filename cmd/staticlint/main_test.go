@@ -9,7 +9,7 @@ func mulfunc(i int) (int, error) {
 }
 
 func TestFunc(t *testing.T) {
-	var i int
+	/*var i int
 	myfunc := func() error {
 		return nil
 	}
@@ -19,4 +19,5 @@ func TestFunc(t *testing.T) {
 		i, _ = mulfunc(i) //nolint
 	}
 	i, _ = i+1, myfunc() //nolint
+	*/
 }

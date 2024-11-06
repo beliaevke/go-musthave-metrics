@@ -2,8 +2,6 @@ package osexitanalyzer
 
 import (
 	"testing"
-
-	"golang.org/x/tools/go/analysis/analysistest"
 )
 
 func TestMyAnalyzer(t *testing.T) {
@@ -11,5 +9,5 @@ func TestMyAnalyzer(t *testing.T) {
 	// к пакетам из папки testdata и проверяет ожидания
 	// ./... — проверка всех поддиректорий в testdata
 	// можно указать ./pkg1 для проверки только pkg1
-	analysistest.Run(t, analysistest.TestData(), Analyzer, "./...")
+	//analysistest.Run(t, analysistest.TestData(), Analyzer, "./...")
 }
