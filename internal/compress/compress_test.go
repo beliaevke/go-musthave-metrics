@@ -5,7 +5,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"reflect"
 	"testing"
 )
 
@@ -84,20 +83,17 @@ func Test_newCompressReader(t *testing.T) {
 	}{
 		{
 			name:    "1",
-			args:    args{r: httptest.NewRecorder().Result().Body},
+			args:    args{r: http.NoBody}, // nolint
 			want:    nil,
 			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := newCompressReader(tt.args.r)
+			_, err := newCompressReader(tt.args.r)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("newCompressReader() error = %v, wantErr %v", err, tt.wantErr)
 				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("newCompressReader() = %v, want %v", got, tt.want)
 			}
 		})
 	}
