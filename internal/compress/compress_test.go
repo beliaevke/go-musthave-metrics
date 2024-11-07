@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 )
 
@@ -67,6 +68,37 @@ func TestWithGzipEncoding(t *testing.T) {
 					string(bd), tc.expectedBody)
 			}
 
+		})
+	}
+}
+
+func Test_newCompressReader(t *testing.T) {
+	type args struct {
+		r io.ReadCloser
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *compressReader
+		wantErr bool
+	}{
+		{
+			name:    "1",
+			args:    args{r: httptest.NewRecorder().Result().Body},
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := newCompressReader(tt.args.r)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("newCompressReader() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("newCompressReader() = %v, want %v", got, tt.want)
+			}
 		})
 	}
 }
