@@ -70,3 +70,47 @@ func TestWithLogging(t *testing.T) {
 		})
 	}
 }
+
+func TestServerRunningInfo(t *testing.T) {
+	type args struct {
+		RunAddr string
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "1",
+			args: args{
+				RunAddr: "localhost",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ServerRunningInfo(tt.args.RunAddr)
+		})
+	}
+}
+
+func TestBuildInfo(t *testing.T) {
+	type args struct {
+		buildVersion string
+		buildDate    string
+		buildCommit  string
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "1",
+			args: args{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			BuildInfo(tt.args.buildVersion, tt.args.buildDate, tt.args.buildCommit)
+		})
+	}
+}

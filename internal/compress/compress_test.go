@@ -70,3 +70,31 @@ func TestWithGzipEncoding(t *testing.T) {
 		})
 	}
 }
+
+func Test_newCompressReader(t *testing.T) {
+	type args struct {
+		r io.ReadCloser
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *compressReader
+		wantErr bool
+	}{
+		{
+			name:    "1",
+			args:    args{r: http.NoBody}, // nolint
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := newCompressReader(tt.args.r)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("newCompressReader() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+		})
+	}
+}

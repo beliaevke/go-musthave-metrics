@@ -15,7 +15,12 @@ import (
 
 	"musthave-metrics/cmd/agent/client"
 	"musthave-metrics/handlers"
+	"musthave-metrics/internal/logger"
 	"musthave-metrics/internal/postgres"
+)
+
+var (
+	buildVersion, buildDate, buildCommit string = "N/A", "N/A", "N/A"
 )
 
 type agent struct {
@@ -42,6 +47,7 @@ func newAgent() (*agent, error) {
 }
 
 func main() {
+	logger.BuildInfo(buildVersion, buildDate, buildCommit)
 	agent, err := newAgent()
 	if err != nil {
 		log.Fatal(err)
@@ -119,9 +125,9 @@ func (agent *agent) pushBatchMetrics() {
 		)
 	}
 	for name, val := range agent.GaugeMetrics {
-		gaugeValue, err := strconv.ParseFloat(val, 64)
-		if err != nil {
-			agent.printErrorLog(err)
+		gaugeValue, errprs := strconv.ParseFloat(val, 64)
+		if errprs != nil {
+			agent.printErrorLog(errprs)
 			continue
 		}
 		metrics = append(metrics,

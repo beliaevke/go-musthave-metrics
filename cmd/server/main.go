@@ -22,7 +22,12 @@ import (
 	"github.com/go-chi/chi/middleware"
 )
 
+var (
+	buildVersion, buildDate, buildCommit string = "N/A", "N/A", "N/A"
+)
+
 func main() {
+	logger.BuildInfo(buildVersion, buildDate, buildCommit)
 	cfg := config.ParseFlags()
 	if cfg.FlagRestore {
 		handlers.RestoreMetrics(cfg.FlagFileStoragePath)

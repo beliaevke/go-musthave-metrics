@@ -103,6 +103,26 @@ func ServerRunningInfo(RunAddr string) {
 	sugar.Infof("Running server on %s", RunAddr)
 }
 
+func BuildInfo(buildVersion string, buildDate string, buildCommit string) {
+	// добавляем предустановленный логер NewDevelopment
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		// вызываем панику, если ошибка
+		log.Fatal(err)
+	}
+	// это нужно добавить, если логер буферизован
+	// в данном случае не буферизован, но привычка хорошая
+	defer logger.Sync() //nolint
+
+	// делаем логер SugaredLogger
+	sugar := logger.Sugar()
+
+	// выводим сообщение уровня Info, но со строкой URL, это тоже SugaredLogger
+	sugar.Infof("Build version: %s", buildVersion)
+	sugar.Infof("Build date: %s", buildDate)
+	sugar.Infof("Build commit: %s", buildCommit)
+}
+
 func Warnf(s string) {
 	// добавляем предустановленный логер NewDevelopment
 	logger, err := zap.NewDevelopment()

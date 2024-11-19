@@ -44,7 +44,7 @@ func (metric GaugeMetric) GetValue() (value string, err error) {
 	if ok {
 		value = strconv.FormatFloat(val, 'g', -1, 64)
 	}
-	return
+	return value, err
 }
 
 func (metric GaugeMetric) GetValues() MemStorage {
@@ -59,7 +59,7 @@ func (metric GaugeMetric) AllValuesHTML() (rows string) {
 	for name, val := range storage.Gauges {
 		rows += fmt.Sprintf("<tr><th>%v</th><th>%v</th></tr>", name, val)
 	}
-	return
+	return rows
 }
 
 type CounterMetric struct {
@@ -80,7 +80,7 @@ func (metric CounterMetric) GetValue() (value string, err error) {
 	if ok {
 		value = strconv.FormatInt(val, 10)
 	}
-	return
+	return value, err
 }
 
 func (metric CounterMetric) GetValues() MemStorage {
@@ -95,5 +95,5 @@ func (metric CounterMetric) AllValuesHTML() (rows string) {
 	for name, val := range storage.Counters {
 		rows += fmt.Sprintf("<tr><th>%v</th><th>%v</th></tr>", name, val)
 	}
-	return
+	return rows
 }

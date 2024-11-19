@@ -69,3 +69,27 @@ func TestAddCounterMetric(t *testing.T) {
 		})
 	}
 }
+
+func TestCounterMetric_AllValuesHTML(t *testing.T) {
+	tests := []struct {
+		name     string
+		metric   CounterMetric
+		wantRows string
+	}{
+		{
+			name: "1",
+			metric: CounterMetric{
+				Name:  "TestCounterMetric",
+				Value: "111",
+			},
+			wantRows: "",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if gotRows := tt.metric.AllValuesHTML(); gotRows == tt.wantRows {
+				t.Errorf("CounterMetric.AllValuesHTML() = %v, want %v", gotRows, tt.wantRows)
+			}
+		})
+	}
+}
