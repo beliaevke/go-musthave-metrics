@@ -1,3 +1,4 @@
+// Package config предназначен для методов конфигурации
 package config
 
 import (
@@ -16,15 +17,17 @@ type ServerFlags struct {
 	FlagDatabaseDSN     string
 	FlagHashKey         string
 	FlagMemProfile      string
+	FlagCryptoKey       string
 	EnvStoreInterval    int    `env:"STORE_INTERVAL"`
 	FileStoragePath     string `env:"FILE_STORAGE_PATH"`
 	EnvRestore          bool   `env:"RESTORE"`
 	DatabaseDSN         string `env:"DATABASE_DSN"`
 	EnvHashKey          string `env:"KEY"`
 	MemProfile          string `env:"MEM_PROFILE"`
+	envCryptoKey        string `env:"CRYPTO_KEY"`
 }
 
-// parseFlags обрабатывает аргументы командной строки
+// ParseFlags обрабатывает аргументы командной строки
 // и сохраняет их значения в соответствующих переменных
 func ParseFlags() ServerFlags {
 	// для случаев, когда в переменных окружения присутствует непустое значение,
@@ -47,13 +50,16 @@ func ParseFlags() ServerFlags {
 	// булево значение (true/false), определяющее, загружать или нет ранее сохранённые значения из указанного файла при старте сервера (по умолчанию true).
 	flag.BoolVar(&cfg.FlagRestore, "r", true, "flag restore")
 	// Строка с адресом подключения к БД должна получаться из переменной окружения DATABASE_DSN или флага командной строки -d.
-	flag.StringVar(&cfg.FlagDatabaseDSN, "d", "", "Database DSN")
+	flag.StringVar(&cfg.FlagDatabaseDSN, "d", "postgres://postgres:pos111@localhost:5432/postgres?sslmode=disable", "Database DSN")
 	// регистрируем переменную FlagHashKey
 	// как аргумент -k со значением "" по умолчанию
 	flag.StringVar(&cfg.FlagHashKey, "k", "", "hash key")
 	// регистрируем переменную FlagMemProfile
 	// как аргумент -mem со значением "profiles/base.pprof" по умолчанию
 	flag.StringVar(&cfg.FlagMemProfile, "mem", "profiles/base.pprof", "mem profile path")
+	// регистрируем переменную FlagCryptoKey
+	// как аргумент -crypto-key со значением локального каталога по умолчанию
+	flag.StringVar(&cfg.FlagCryptoKey, "crypto-key", "D:/_learning/YaP_workspace/go-musthave-metrics/cmd/cryptokeys/key", "path to private key")
 	// парсим переданные серверу аргументы в зарегистрированные переменные
 	flag.Parse()
 
@@ -82,6 +88,11 @@ func ParseFlags() ServerFlags {
 	}
 	if MemProfile := os.Getenv("MEM_PROFILE"); MemProfile != "" {
 		cfg.FlagMemProfile = MemProfile
+	}
+	if cfg.envCryptoKey != "" {
+		cfg.FlagCryptoKey = cfg.envCryptoKey
+	} else if envCryptoKey := os.Getenv("CRYPTO_KEY"); envCryptoKey != "" {
+		cfg.FlagCryptoKey = envCryptoKey
 	}
 	return *cfg
 }

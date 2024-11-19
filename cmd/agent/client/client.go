@@ -1,3 +1,4 @@
+// Package client
 package client
 
 import (
@@ -16,6 +17,7 @@ type Locallink struct {
 	ReportInterval  int
 	HashKey         string
 	RateLimit       int
+	PublicKeyPath   string
 }
 
 func (locallink *Locallink) Run() error {
@@ -29,6 +31,7 @@ func (locallink *Locallink) Run() error {
 	locallink.PollInterval = cfg.FlagPollInterval
 	locallink.HashKey = cfg.FlagHashKey
 	locallink.RateLimit = cfg.FlagRateLimit
+	locallink.PublicKeyPath = cfg.FlagCryptoKey
 	fmt.Printf("%s (!) Running server on %s, Report interval: %v, Poll interval: %v\n", time.Now().Format(time.DateTime), cfg.FlagRunAddr, cfg.FlagReportInterval, cfg.FlagPollInterval)
 	return err
 }

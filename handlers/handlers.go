@@ -3,6 +3,7 @@ package handlers
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"musthave-metrics/cmd/agent/client"
+	"musthave-metrics/internal/crypt"
 	"musthave-metrics/internal/logger"
 	"musthave-metrics/internal/postgres"
 	"musthave-metrics/internal/service"
@@ -510,18 +512,34 @@ func UpdateMetrics(locallink client.Locallink, mtype string, mname string, mvalu
 func UpdateBatchMetrics(locallink client.Locallink, metrics []postgres.Metrics) error {
 	client := &http.Client{}
 	url := service.MakeBatchUpdatesURL(locallink.RunAddr)
-	data, err := json.MarshalIndent(metrics, "", "   ")
+	data := new(bytes.Buffer)
+	defer data.Reset()
+	gzb := gzip.NewWriter(data)
+	json.NewEncoder(gzb).Encode(metrics)
+	err := gzb.Close()
 	if err != nil {
-		logger.Warnf("Update batch metrics error: " + err.Error())
+		logger.Warnf("Error encode request body: " + err.Error())
 		return err
 	}
-	request, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(data))
+	encrypteddata, err := crypt.Encrypt(locallink.PublicKeyPath, data.String())
+	if err != nil {
+		logger.Warnf("Error encode request body: " + err.Error())
+		return err
+	}
+	data = new(bytes.Buffer)
+	_, err = data.WriteString(encrypteddata)
+	if err != nil {
+		logger.Warnf("Error encode request body: " + err.Error())
+		return err
+	}
+	request, err := http.NewRequest(http.MethodPost, url, data)
 	if err != nil {
 		return err
 	}
 	request.Header.Set("Content-Type", `application/json`)
+	request.Header.Set("Content-Encoding", "gzip")
 	if locallink.HashKey != "" {
-		request.Header.Set("HashSHA256", service.GetHashString(data, locallink.HashKey))
+		request.Header.Set("HashSHA256", service.GetHashString(data.Bytes(), locallink.HashKey))
 	}
 	response, err := client.Do(request)
 	if err != nil {

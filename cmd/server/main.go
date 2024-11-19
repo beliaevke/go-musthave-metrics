@@ -52,11 +52,15 @@ func main() {
 func run(cfg config.ServerFlags) error {
 	logger.ServerRunningInfo(cfg.FlagRunAddr)
 	mux := chi.NewMux()
-	mux.Use(logger.WithLogging, compress.WithGzipEncoding)
 	if cfg.FlagHashKey != "" {
 		hd := service.NewHashData(cfg.FlagHashKey)
 		mux.Use(hd.WithHashVerification)
 	}
+	if cfg.FlagCryptoKey != "" {
+		kd := service.NewKeyData(cfg.FlagCryptoKey)
+		mux.Use(kd.WithEncrypt)
+	}
+	mux.Use(logger.WithLogging, compress.WithGzipEncoding)
 	mux.Handle("/update/{metricType}/{metricName}/{metricValue}", handlers.UpdateHandler())
 	mux.Handle("/update/", updateHandler(cfg))
 	mux.Handle("/updates/", handlers.UpdateBatchDBHandler(cfg.FlagDatabaseDSN))

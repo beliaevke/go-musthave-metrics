@@ -1,3 +1,4 @@
+// Package config предназначен для методов конфигурации.
 package config
 
 import (
@@ -15,15 +16,17 @@ type ClientFlags struct {
 	FlagHashKey        string
 	FlagRateLimit      int
 	FlagMemProfile     string
+	FlagCryptoKey      string
 	envRunAddr         string `env:"ADDRESS"`
 	envReportInterval  int    `env:"REPORT_INTERVAL"`
 	envPollInterval    int    `env:"POLL_INTERVAL"`
 	envHashKey         string `env:"KEY"`
 	envRateLimit       int    `env:"RATE_LIMIT"`
 	MemProfile         string `env:"MEM_PROFILE"`
+	envCryptoKey       string `env:"CRYPTO_KEY"`
 }
 
-// parseFlags обрабатывает аргументы командной строки
+// ParseFlags обрабатывает аргументы командной строки
 // и сохраняет их значения в соответствующих переменных
 func ParseFlags() ClientFlags {
 	// для случаев, когда в переменных окружения присутствует непустое значение,
@@ -51,6 +54,9 @@ func ParseFlags() ClientFlags {
 	// регистрируем переменную FlagMemProfile
 	// как аргумент -mem со значением "profiles/base.pprof" по умолчанию
 	flag.StringVar(&cfg.FlagMemProfile, "mem", "profiles/base.pprof", "mem profile path")
+	// регистрируем переменную FlagCryptoKey
+	// как аргумент -crypto-key со значением локального каталога по умолчанию
+	flag.StringVar(&cfg.FlagCryptoKey, "crypto-key", "D:/_learning/YaP_workspace/go-musthave-metrics/cmd/cryptokeys/key.pub", "path to public key")
 	// парсим переданные серверу аргументы в зарегистрированные переменные
 	flag.Parse()
 	if cfg.envRunAddr != "" {
@@ -74,6 +80,11 @@ func ParseFlags() ClientFlags {
 	}
 	if MemProfile := os.Getenv("MEM_PROFILE"); MemProfile != "" {
 		cfg.FlagMemProfile = MemProfile
+	}
+	if cfg.envCryptoKey != "" {
+		cfg.FlagCryptoKey = cfg.envCryptoKey
+	} else if envCryptoKey := os.Getenv("CRYPTO_KEY"); envCryptoKey != "" {
+		cfg.FlagCryptoKey = envCryptoKey
 	}
 	return cfg
 }
