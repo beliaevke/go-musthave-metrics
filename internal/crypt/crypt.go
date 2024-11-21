@@ -59,10 +59,13 @@ func MakeRSACert(params *Settings) error {
 	// кодируем сертификат и ключ в формате PEM, который
 	// используется для хранения и обмена криптографическими ключами
 	var certPEM bytes.Buffer
-	pem.Encode(&certPEM, &pem.Block{
+	err = pem.Encode(&certPEM, &pem.Block{
 		Type:  "CERTIFICATE",
 		Bytes: certBytes,
 	})
+	if err != nil {
+		return err
+	}
 
 	err = os.WriteFile(params.PathToCertificate, certPEM.Bytes(), 0666)
 	if err != nil {
@@ -70,10 +73,13 @@ func MakeRSACert(params *Settings) error {
 	}
 
 	var privateKeyPEM bytes.Buffer
-	pem.Encode(&privateKeyPEM, &pem.Block{
+	err = pem.Encode(&privateKeyPEM, &pem.Block{
 		Type:  "RSA PRIVATE KEY",
 		Bytes: x509.MarshalPKCS1PrivateKey(privateKey),
 	})
+	if err != nil {
+		return err
+	}
 
 	err = os.WriteFile(params.PathToPrivateKey, privateKeyPEM.Bytes(), 0666)
 	if err != nil {

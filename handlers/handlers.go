@@ -515,8 +515,12 @@ func UpdateBatchMetrics(locallink client.Locallink, metrics []postgres.Metrics) 
 	data := new(bytes.Buffer)
 	defer data.Reset()
 	gzb := gzip.NewWriter(data)
-	json.NewEncoder(gzb).Encode(metrics)
-	err := gzb.Close()
+	err := json.NewEncoder(gzb).Encode(metrics)
+	if err != nil {
+		logger.Warnf("Error encode request body: " + err.Error())
+		return err
+	}
+	err = gzb.Close()
 	if err != nil {
 		logger.Warnf("Error encode request body: " + err.Error())
 		return err
