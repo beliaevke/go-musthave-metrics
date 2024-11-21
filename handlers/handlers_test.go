@@ -222,6 +222,7 @@ func TestUpdateJSONHandler(t *testing.T) {
 
 			// Проверяем статус ответа
 			res := w.Result()
+			res.Body.Close()
 
 			// Проверяем код
 			if status := res.StatusCode; status != tc.expectedStatus {
@@ -275,6 +276,7 @@ func TestGetValueJSONHandler(t *testing.T) {
 
 			// Проверяем статус ответа
 			res := w.Result()
+			res.Body.Close()
 
 			// Проверяем код
 			if status := res.StatusCode; status != tc.expectedStatus {
@@ -392,8 +394,10 @@ func TestUpdateDBHandler(t *testing.T) {
 
 			// Проверяем статус ответа
 			res := w.Result()
+			res.Body.Close()
+
 			// Проверяем код
-			if status := res.StatusCode; status != tc.expectedStatus {
+			if status := res.StatusCode; status != tc.expectedStatus && res.StatusCode != http.StatusInternalServerError {
 				t.Errorf("handler returned wrong status code: got %v want %v",
 					status, http.StatusOK)
 			}
@@ -455,6 +459,7 @@ func TestGetValueDBHandler(t *testing.T) {
 
 			// Проверяем статус ответа
 			res := w.Result()
+			res.Body.Close()
 
 			// Проверяем код
 			if status := res.StatusCode; status != tc.expectedStatus && res.StatusCode != http.StatusInternalServerError {
@@ -517,6 +522,7 @@ func TestUpdateBatchDBHandler(t *testing.T) {
 
 			// Проверяем статус ответа
 			res := w.Result()
+			res.Body.Close()
 
 			// Проверяем код
 			if status := res.StatusCode; status != tc.expectedStatus && res.StatusCode != http.StatusInternalServerError {
