@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"os"
+	"os/signal"
 	"reflect"
 	"runtime"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -27,6 +30,8 @@ type agent struct {
 	CounterMetrics map[string]int64
 	GaugeMetrics   map[string]string
 	client         client.Locallink
+	sigs           chan os.Signal
+	shutdown       bool
 }
 
 func (agent *agent) run() {
@@ -47,12 +52,19 @@ func newAgent() (*agent, error) {
 }
 
 func main() {
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
+
 	logger.BuildInfo(buildVersion, buildDate, buildCommit)
 	agent, err := newAgent()
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	agent.sigs = sigs
 	agent.run()
+
 	/*
 		fmem, err := os.Create("profiles/res.pprof")
 		if err != nil {
@@ -77,7 +89,18 @@ func (agent *agent) pollMetrics() {
 		agent.pollMetrics()
 		agent.printMetricsLog("<= Read")
 	}
-	time.AfterFunc(time.Duration(agent.client.PollInterval)*time.Second, f)
+	select {
+	case sig := <-agent.sigs:
+		agent.shutdown = true
+		logger.Warnf("Получен сигнал: " + sig.String())
+	default:
+		if !agent.shutdown {
+			time.AfterFunc(time.Duration(agent.client.PollInterval)*time.Second, f)
+		}
+	}
+	if agent.shutdown {
+		logger.Infof("Получен сигнал, завершаем операции pollMetrics")
+	}
 }
 
 func (agent *agent) pollUtilMetrics() {
@@ -86,7 +109,18 @@ func (agent *agent) pollUtilMetrics() {
 		agent.pollUtilMetrics()
 		agent.printMetricsLog("<= Util")
 	}
-	time.AfterFunc(time.Duration(agent.client.PollInterval)*time.Second, f)
+	select {
+	case sig := <-agent.sigs:
+		agent.shutdown = true
+		logger.Warnf("Получен сигнал: " + sig.String())
+	default:
+		if !agent.shutdown {
+			time.AfterFunc(time.Duration(agent.client.PollInterval)*time.Second, f)
+		}
+	}
+	if agent.shutdown {
+		logger.Infof("Получен сигнал, завершаем операции pollUtilMetrics")
+	}
 }
 
 func (agent *agent) reportMetrics() {
@@ -96,7 +130,18 @@ func (agent *agent) reportMetrics() {
 		agent.reportMetrics()
 		agent.printMetricsLog("=> Push")
 	}
-	time.AfterFunc(time.Duration(agent.client.ReportInterval)*time.Second, f)
+	select {
+	case sig := <-agent.sigs:
+		agent.shutdown = true
+		logger.Warnf("Получен сигнал: " + sig.String())
+	default:
+		if !agent.shutdown {
+			time.AfterFunc(time.Duration(agent.client.ReportInterval)*time.Second, f)
+		}
+	}
+	if agent.shutdown {
+		logger.Infof("Получен сигнал, завершаем операции reportMetrics")
+	}
 }
 
 func (agent *agent) pushMetrics() {

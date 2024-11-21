@@ -525,7 +525,10 @@ func UpdateBatchMetrics(locallink client.Locallink, metrics []postgres.Metrics) 
 		logger.Warnf("Error encode request body: " + err.Error())
 		return err
 	}
-	encrypteddata, err := crypt.Encrypt(locallink.PublicKeyPath, data.String())
+	encrypteddata := data.String()
+	if locallink.PublicKeyPath != "" {
+		encrypteddata, err = crypt.Encrypt(locallink.PublicKeyPath, data.String())
+	}
 	if err != nil {
 		logger.Warnf("Error encode request body: " + err.Error())
 		return err

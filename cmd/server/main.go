@@ -3,12 +3,13 @@ package main
 import (
 	"context"
 	"expvar"
-	"log"
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"os/signal"
 	"runtime"
 	rpprof "runtime/pprof"
+	"syscall"
 	"time"
 
 	"musthave-metrics/cmd/server/config"
@@ -27,6 +28,14 @@ var (
 )
 
 func main() {
+	// через этот канал сообщим основному потоку, что соединения закрыты
+	idleConnsClosed := make(chan struct{})
+	// канал для перенаправления прерываний
+	// поскольку нужно отловить всего одно прерывание,
+	// ёмкости 1 для канала будет достаточно
+	sigs := make(chan os.Signal, 1)
+	// регистрируем перенаправление прерываний
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 	logger.BuildInfo(buildVersion, buildDate, buildCommit)
 	cfg := config.ParseFlags()
 	if cfg.FlagRestore {
@@ -35,9 +44,38 @@ func main() {
 	if cfg.FlagStoreInterval != 0 {
 		storeMetrics(cfg)
 	}
-	if err := run(cfg); err != nil {
-		log.Fatal(err)
+
+	HTTPServer := run(cfg)
+
+	// запускаем горутину обработки пойманных прерываний
+	go func() {
+		// читаем из канала прерываний
+		// поскольку нужно прочитать только одно прерывание,
+		// можно обойтись без цикла
+		<-sigs
+		// получили сигнал os.Interrupt, запускаем процедуру graceful shutdown
+		if err := HTTPServer.Shutdown(context.Background()); err != nil {
+			// ошибки закрытия Listener
+			logger.Warnf("HTTP server Shutdown: " + err.Error())
+		}
+		// сообщаем основному потоку,
+		// что все сетевые соединения обработаны и закрыты
+		close(idleConnsClosed)
+	}()
+
+	if err := HTTPServer.ListenAndServe(); err != http.ErrServerClosed {
+		// ошибки старта или остановки Listener
+		logger.Warnf("HTTP server ListenAndServe: " + err.Error())
 	}
+
+	// ждём завершения процедуры graceful shutdown
+	<-idleConnsClosed
+	// получили оповещение о завершении
+	// здесь можно освобождать ресурсы перед выходом,
+	// например закрыть соединение с базой данных,
+	// закрыть открытые файлы
+	logger.Infof("Server Shutdown gracefully")
+
 	fmem, err := os.Create(cfg.FlagMemProfile)
 	if err != nil {
 		panic(err)
@@ -49,7 +87,7 @@ func main() {
 	}
 }
 
-func run(cfg config.ServerFlags) error {
+func run(cfg config.ServerFlags) *http.Server {
 	logger.ServerRunningInfo(cfg.FlagRunAddr)
 	mux := chi.NewMux()
 	if cfg.FlagHashKey != "" {
@@ -69,7 +107,13 @@ func run(cfg config.ServerFlags) error {
 	mux.Handle("/ping", handlers.PingDBHandler(cfg.FlagDatabaseDSN))
 	mux.Handle("/", handlers.AllMetricsHandler())
 	mux.Mount("/debug", middleware.Profiler())
-	return http.ListenAndServe(cfg.FlagRunAddr, mux)
+
+	HTTPServer := &http.Server{
+		Addr:    cfg.FlagRunAddr,
+		Handler: mux,
+	}
+
+	return HTTPServer
 }
 
 func storeMetrics(cfg config.ServerFlags) {

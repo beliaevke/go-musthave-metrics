@@ -36,7 +36,7 @@ func ParseFlags() ServerFlags {
 	// для случаев, когда в переменных окружения присутствует непустое значение,
 	// переопределим их, даже если они были переданы через аргументы командной строки
 	cfg := readConfig()
-	if err := env.Parse(cfg); err != nil {
+	if err := env.Parse(&cfg); err != nil {
 		log.Fatal(err)
 	}
 	// регистрируем переменную flagRunAddr
