@@ -2,6 +2,8 @@
 package config
 
 import (
+	"bytes"
+	"encoding/json"
 	"flag"
 	"log"
 	"os"
@@ -10,14 +12,14 @@ import (
 )
 
 type ServerFlags struct {
-	FlagRunAddr         string
-	FlagStoreInterval   int
-	FlagFileStoragePath string
-	FlagRestore         bool
-	FlagDatabaseDSN     string
+	FlagRunAddr         string `json:"address"`
+	FlagStoreInterval   int    `json:"store_interval"`
+	FlagFileStoragePath string `json:"store_file"`
+	FlagRestore         bool   `json:"restore"`
+	FlagDatabaseDSN     string `json:"database_dsn"`
 	FlagHashKey         string
 	FlagMemProfile      string
-	FlagCryptoKey       string
+	FlagCryptoKey       string `json:"crypto_key"`
 	EnvStoreInterval    int    `env:"STORE_INTERVAL"`
 	FileStoragePath     string `env:"FILE_STORAGE_PATH"`
 	EnvRestore          bool   `env:"RESTORE"`
@@ -25,6 +27,7 @@ type ServerFlags struct {
 	EnvHashKey          string `env:"KEY"`
 	MemProfile          string `env:"MEM_PROFILE"`
 	envCryptoKey        string `env:"CRYPTO_KEY"`
+	Config              string `env:"CONFIGSRV"`
 }
 
 // ParseFlags обрабатывает аргументы командной строки
@@ -32,7 +35,7 @@ type ServerFlags struct {
 func ParseFlags() ServerFlags {
 	// для случаев, когда в переменных окружения присутствует непустое значение,
 	// переопределим их, даже если они были переданы через аргументы командной строки
-	cfg := new(ServerFlags)
+	cfg := readConfig()
 	if err := env.Parse(cfg); err != nil {
 		log.Fatal(err)
 	}
@@ -94,5 +97,36 @@ func ParseFlags() ServerFlags {
 	} else if envCryptoKey := os.Getenv("CRYPTO_KEY"); envCryptoKey != "" {
 		cfg.FlagCryptoKey = envCryptoKey
 	}
-	return *cfg
+	return cfg
+}
+
+func readConfig() ServerFlags {
+
+	cfg := ServerFlags{}
+
+	// регистрируем переменную Config
+	// как аргумент -config со значением локального каталога
+	flag.StringVar(&cfg.Config, "config", "", "path to config file")
+
+	// парсим переданные серверу аргументы в зарегистрированные переменные
+	flag.Parse()
+
+	if cfg.Config == "" {
+		cfg.Config, _ = os.LookupEnv("CONFIGSRV")
+	}
+
+	if cfg.Config == "" {
+		return cfg
+	}
+
+	data, err := os.ReadFile(cfg.Config)
+	if err != nil {
+		return cfg
+	}
+	reader := bytes.NewReader(data)
+	if err := json.NewDecoder(reader).Decode(&cfg); err != nil {
+		return cfg
+	}
+
+	return cfg
 }
