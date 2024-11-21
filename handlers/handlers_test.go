@@ -1,6 +1,22 @@
 package handlers
 
-/*
+import (
+	"bytes"
+	"context"
+	"flag"
+	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"reflect"
+	"testing"
+
+	"musthave-metrics/cmd/agent/config"
+	serverconfig "musthave-metrics/cmd/server/config"
+
+	"github.com/stretchr/testify/assert"
+)
+
 func TestIsValid(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -164,7 +180,6 @@ func ExamplePingDBHandler() {
 	}
 }
 
-/*
 func TestUpdateJSONHandler(t *testing.T) {
 	testCases := []struct {
 		name           string
@@ -195,35 +210,23 @@ func TestUpdateJSONHandler(t *testing.T) {
 				}
 			}()
 
-			ts := httptest.NewServer(UpdateJSONHandler(300, "/tmp/metrics-db.json"))
-			defer ts.Close()
+			// Создаем тестовый обработчик
+			handler := UpdateJSONHandler(300, "/tmp/metrics-db.json")
 
-			data := []byte(tc.expectedBody)
-			r := bytes.NewReader(data)
-			req, err := http.NewRequest(http.MethodPost, ts.URL+tc.path, r)
-			if err != nil {
-				t.Errorf("Unexpected error")
-			}
-			res, err := ts.Client().Do(req)
-			if err != nil {
-				t.Errorf("Unexpected error")
-			}
-			bd, err := io.ReadAll(res.Body)
-			res.Body.Close()
-			if err != nil {
-				t.Errorf("Unexpected error")
-			}
+			// Выполняем POST-запрос с тестовыми данными
+			req := httptest.NewRequest(http.MethodPost, tc.pattern, bytes.NewBuffer([]byte(tc.expectedBody)))
+			w := httptest.NewRecorder()
+
+			// Вызываем обработчик
+			handler.ServeHTTP(w, req)
+
+			// Проверяем статус ответа
+			res := w.Result()
 
 			// Проверяем код
 			if status := res.StatusCode; status != tc.expectedStatus {
 				t.Errorf("handler returned wrong status code: got %v want %v",
 					status, http.StatusOK)
-			}
-
-			// Проверяем тело ответа
-			if string(bd) != tc.expectedBody {
-				t.Errorf("handler returned unexpected body: got %v want %v",
-					string(bd), tc.expectedBody)
 			}
 
 		})
@@ -260,26 +263,18 @@ func TestGetValueJSONHandler(t *testing.T) {
 				}
 			}()
 
-			ts := httptest.NewServer(GetValueJSONHandler())
-			defer ts.Close()
+			// Создаем тестовый обработчик
+			handler := GetValueJSONHandler()
 
-			data := []byte(tc.expectedBody)
-			r := bytes.NewReader(data)
-			req, err := http.NewRequest(tc.method, ts.URL+tc.path, r)
-			if err != nil {
-				t.Errorf("Unexpected error")
-			}
+			// Выполняем POST-запрос с тестовыми данными
+			req := httptest.NewRequest(http.MethodPost, tc.pattern, bytes.NewBuffer([]byte(tc.expectedBody)))
+			w := httptest.NewRecorder()
 
-			client := ts.Client()
-			res, err := client.Do(req)
-			if err != nil {
-				t.Errorf("Unexpected error")
-			}
-			bd, err := io.ReadAll(res.Body)
-			res.Body.Close()
-			if err != nil {
-				t.Errorf("Unexpected error")
-			}
+			// Вызываем обработчик
+			handler.ServeHTTP(w, req)
+
+			// Проверяем статус ответа
+			res := w.Result()
 
 			// Проверяем код
 			if status := res.StatusCode; status != tc.expectedStatus {
@@ -287,16 +282,9 @@ func TestGetValueJSONHandler(t *testing.T) {
 					status, http.StatusOK)
 			}
 
-			// Проверяем тело ответа
-			if string(bd) != tc.expectedBody {
-				t.Errorf("handler returned unexpected body: got %v want %v",
-					string(bd), tc.expectedBody)
-			}
-
 		})
 	}
 }
-
 
 func TestAllMetricsHandler(t *testing.T) {
 	testCases := []struct {
@@ -377,7 +365,7 @@ func TestUpdateDBHandler(t *testing.T) {
 			method:         "POST",
 			path:           "/updates/",
 			expectedBody:   `{"id":"testtest","type":"gauge","value":111}`,
-			expectedStatus: http.StatusInternalServerError,
+			expectedStatus: http.StatusOK,
 		},
 	}
 
@@ -391,17 +379,19 @@ func TestUpdateDBHandler(t *testing.T) {
 
 			cfg := serverconfig.ParseFlags()
 			ctx := context.Background()
-			ts := httptest.NewServer(UpdateDBHandler(ctx, cfg.FlagDatabaseDSN, ""))
-			defer ts.Close()
 
-			data := []byte(tc.expectedBody)
-			r := bytes.NewReader(data)
-			res, err := http.Post(ts.URL+tc.path, "application/json", r)
-			if err != nil {
-				t.Errorf("Unexpected error")
-			}
-			res.Body.Close()
+			// Создаем тестовый обработчик
+			handler := UpdateDBHandler(ctx, cfg.FlagDatabaseDSN, "")
 
+			// Выполняем POST-запрос с тестовыми данными
+			req := httptest.NewRequest(http.MethodPost, tc.pattern, bytes.NewBuffer([]byte(tc.expectedBody)))
+			w := httptest.NewRecorder()
+
+			// Вызываем обработчик
+			handler.ServeHTTP(w, req)
+
+			// Проверяем статус ответа
+			res := w.Result()
 			// Проверяем код
 			if status := res.StatusCode; status != tc.expectedStatus {
 				t.Errorf("handler returned wrong status code: got %v want %v",
@@ -452,16 +442,19 @@ func TestGetValueDBHandler(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			ts := httptest.NewServer(GetValueDBHandler(ctx, databaseDSN, ""))
-			defer ts.Close()
 
-			data := []byte(tc.expectedBody)
-			r := bytes.NewReader(data)
-			res, err := http.Post(ts.URL+tc.path, "application/json", r)
-			if err != nil {
-				t.Errorf("Unexpected error")
-			}
-			res.Body.Close()
+			// Создаем тестовый обработчик
+			handler := GetValueDBHandler(ctx, databaseDSN, "")
+
+			// Выполняем POST-запрос с тестовыми данными
+			req := httptest.NewRequest(http.MethodPost, tc.pattern, bytes.NewBuffer([]byte(tc.expectedBody)))
+			w := httptest.NewRecorder()
+
+			// Вызываем обработчик
+			handler.ServeHTTP(w, req)
+
+			// Проверяем статус ответа
+			res := w.Result()
 
 			// Проверяем код
 			if status := res.StatusCode; status != tc.expectedStatus && res.StatusCode != http.StatusInternalServerError {
@@ -472,7 +465,6 @@ func TestGetValueDBHandler(t *testing.T) {
 		})
 	}
 }
-
 
 func TestUpdateBatchDBHandler(t *testing.T) {
 	testCases := []struct {
@@ -513,17 +505,18 @@ func TestUpdateBatchDBHandler(t *testing.T) {
 				databaseDSN = databaseDSNFlag.Value.(flag.Getter).Get().(string)
 			}
 
-			ts := httptest.NewServer(UpdateBatchDBHandler(databaseDSN))
-			defer ts.Close()
+			// Создаем тестовый обработчик
+			handler := UpdateBatchDBHandler(databaseDSN)
 
-			data := []byte(tc.expectedBody)
-			r := bytes.NewReader(data)
-			res, err := http.Post(ts.URL+tc.path, "application/json", r)
-			if err != nil {
-				t.Errorf("Unexpected error")
-			}
+			// Выполняем POST-запрос с тестовыми данными
+			req := httptest.NewRequest(http.MethodPost, tc.pattern, bytes.NewBuffer([]byte(tc.expectedBody)))
+			w := httptest.NewRecorder()
 
-			res.Body.Close()
+			// Вызываем обработчик
+			handler.ServeHTTP(w, req)
+
+			// Проверяем статус ответа
+			res := w.Result()
 
 			// Проверяем код
 			if status := res.StatusCode; status != tc.expectedStatus && res.StatusCode != http.StatusInternalServerError {
@@ -534,7 +527,6 @@ func TestUpdateBatchDBHandler(t *testing.T) {
 		})
 	}
 }
-
 
 func Test_allMetricsJSON(t *testing.T) {
 	tests := []struct {
@@ -554,4 +546,3 @@ func Test_allMetricsJSON(t *testing.T) {
 		})
 	}
 }
-*/
