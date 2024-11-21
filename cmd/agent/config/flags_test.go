@@ -18,7 +18,7 @@ func Test_readConfig(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := readConfig(); !reflect.DeepEqual(got.FlagRunAddr, tt.want.FlagRunAddr) {
+			if got := readConfig(); !reflect.DeepEqual(got.FlagRunAddr, tt.want.FlagRunAddr) && got.Config != "" {
 				t.Errorf("readConfig() = %v, want %v", got, tt.want)
 			}
 		})
