@@ -1,6 +1,9 @@
+// Package config предназначен для методов конфигурации
 package config
 
 import (
+	"bytes"
+	"encoding/json"
 	"flag"
 	"log"
 	"os"
@@ -9,28 +12,31 @@ import (
 )
 
 type ServerFlags struct {
-	FlagRunAddr         string
-	FlagStoreInterval   int
-	FlagFileStoragePath string
-	FlagRestore         bool
-	FlagDatabaseDSN     string
+	FlagRunAddr         string `json:"address"`
+	FlagStoreInterval   int    `json:"store_interval"`
+	FlagFileStoragePath string `json:"store_file"`
+	FlagRestore         bool   `json:"restore"`
+	FlagDatabaseDSN     string `json:"database_dsn"`
 	FlagHashKey         string
 	FlagMemProfile      string
+	FlagCryptoKey       string `json:"crypto_key"`
 	EnvStoreInterval    int    `env:"STORE_INTERVAL"`
 	FileStoragePath     string `env:"FILE_STORAGE_PATH"`
 	EnvRestore          bool   `env:"RESTORE"`
 	DatabaseDSN         string `env:"DATABASE_DSN"`
 	EnvHashKey          string `env:"KEY"`
 	MemProfile          string `env:"MEM_PROFILE"`
+	envCryptoKey        string `env:"CRYPTO_KEY"`
+	Config              string `env:"CONFIGSRV"`
 }
 
-// parseFlags обрабатывает аргументы командной строки
+// ParseFlags обрабатывает аргументы командной строки
 // и сохраняет их значения в соответствующих переменных
 func ParseFlags() ServerFlags {
 	// для случаев, когда в переменных окружения присутствует непустое значение,
 	// переопределим их, даже если они были переданы через аргументы командной строки
-	cfg := new(ServerFlags)
-	if err := env.Parse(cfg); err != nil {
+	cfg := readConfig()
+	if err := env.Parse(&cfg); err != nil {
 		log.Fatal(err)
 	}
 	// регистрируем переменную flagRunAddr
@@ -47,13 +53,16 @@ func ParseFlags() ServerFlags {
 	// булево значение (true/false), определяющее, загружать или нет ранее сохранённые значения из указанного файла при старте сервера (по умолчанию true).
 	flag.BoolVar(&cfg.FlagRestore, "r", true, "flag restore")
 	// Строка с адресом подключения к БД должна получаться из переменной окружения DATABASE_DSN или флага командной строки -d.
-	flag.StringVar(&cfg.FlagDatabaseDSN, "d", "", "Database DSN")
+	flag.StringVar(&cfg.FlagDatabaseDSN, "d", "postgres://postgres:pos111@localhost:5432/postgres?sslmode=disable", "Database DSN")
 	// регистрируем переменную FlagHashKey
 	// как аргумент -k со значением "" по умолчанию
 	flag.StringVar(&cfg.FlagHashKey, "k", "", "hash key")
 	// регистрируем переменную FlagMemProfile
 	// как аргумент -mem со значением "profiles/base.pprof" по умолчанию
 	flag.StringVar(&cfg.FlagMemProfile, "mem", "profiles/base.pprof", "mem profile path")
+	// регистрируем переменную FlagCryptoKey
+	// как аргумент -crypto-key со значением локального каталога по умолчанию
+	flag.StringVar(&cfg.FlagCryptoKey, "crypto-key", "D:/_learning/YaP_workspace/go-musthave-metrics/cmd/cryptokeys/key", "path to private key")
 	// парсим переданные серверу аргументы в зарегистрированные переменные
 	flag.Parse()
 
@@ -83,5 +92,41 @@ func ParseFlags() ServerFlags {
 	if MemProfile := os.Getenv("MEM_PROFILE"); MemProfile != "" {
 		cfg.FlagMemProfile = MemProfile
 	}
-	return *cfg
+	if cfg.envCryptoKey != "" {
+		cfg.FlagCryptoKey = cfg.envCryptoKey
+	} else if envCryptoKey := os.Getenv("CRYPTO_KEY"); envCryptoKey != "" {
+		cfg.FlagCryptoKey = envCryptoKey
+	}
+	return cfg
+}
+
+func readConfig() ServerFlags {
+
+	cfg := ServerFlags{}
+
+	// регистрируем переменную Config
+	// как аргумент -config со значением локального каталога
+	flag.StringVar(&cfg.Config, "config", "", "path to config file")
+
+	// парсим переданные серверу аргументы в зарегистрированные переменные
+	flag.Parse()
+
+	if cfg.Config == "" {
+		cfg.Config, _ = os.LookupEnv("CONFIGSRV")
+	}
+
+	if cfg.Config == "" {
+		return cfg
+	}
+
+	data, err := os.ReadFile(cfg.Config)
+	if err != nil {
+		return cfg
+	}
+	reader := bytes.NewReader(data)
+	if err := json.NewDecoder(reader).Decode(&cfg); err != nil {
+		return cfg
+	}
+
+	return cfg
 }

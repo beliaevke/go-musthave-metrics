@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 
+	"musthave-metrics/internal/crypt"
 	"musthave-metrics/internal/logger"
 )
 
@@ -20,6 +21,10 @@ type HashData struct {
 type hashResponseWriter struct {
 	http.ResponseWriter
 	HashData HashData
+}
+
+type KeyData struct {
+	PrivateKeyPath string
 }
 
 func (r *hashResponseWriter) Write(b []byte) (int, error) {
@@ -86,4 +91,49 @@ func (hd HashData) WithHashVerification(h http.Handler) http.Handler {
 		h.ServeHTTP(&hw, r)
 	}
 	return http.HandlerFunc(hashVerificationFunc)
+}
+
+func NewKeyData(privateKeyPath string) *KeyData {
+	return &KeyData{
+		PrivateKeyPath: privateKeyPath,
+	}
+}
+
+func (kd KeyData) WithEncrypt(h http.Handler) http.Handler {
+	decryptFunc := func(w http.ResponseWriter, r *http.Request) {
+		ow := w
+
+		// decrypt request body
+		data, err := io.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// decrypt only non-empty data
+		if len(data) > 0 {
+
+			/*
+				// test encrypt
+				encryptedBody, err := crypt.Encrypt(
+					"D:/_learning/YaP_workspace/go-musthave-metrics/cmd/cryptokeys/key.pub",
+					string(data),
+				)
+				decryptBody, err := crypt.Decrypt(kd.PrivateKeyPath, encryptedBody)
+			*/
+
+			decryptBody, err := crypt.Decrypt(kd.PrivateKeyPath, string(data))
+
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			// возвращаем тело запроса
+			r.Body = io.NopCloser(bytes.NewReader([]byte(decryptBody)))
+		}
+
+		// передаём управление хендлеру
+		h.ServeHTTP(ow, r)
+	}
+	return http.HandlerFunc(decryptFunc)
 }

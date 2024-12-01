@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
+	"os/signal"
 	"reflect"
 	"runtime"
 	"strconv"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -27,6 +30,8 @@ type agent struct {
 	CounterMetrics map[string]int64
 	GaugeMetrics   map[string]string
 	client         client.Locallink
+	notifyCtx      context.Context
+	shutdown       context.CancelFunc
 }
 
 func (agent *agent) run() {
@@ -35,7 +40,19 @@ func (agent *agent) run() {
 	go agent.pollMetrics()
 	go agent.pollUtilMetrics()
 	go agent.reportMetrics()
-	time.Sleep(30 * time.Second)
+
+	for i := 0; i < 30; i++ {
+		select {
+		case <-agent.notifyCtx.Done():
+			time.Sleep(time.Duration(agent.client.PollInterval) * time.Second * 3)
+			agent.printAgentLog("Stop (on signal)")
+			agent.shutdown()
+			return
+		default:
+			time.Sleep(1 * time.Second)
+		}
+	}
+
 	agent.printAgentLog("Stop")
 }
 
@@ -47,12 +64,20 @@ func newAgent() (*agent, error) {
 }
 
 func main() {
+
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
 	logger.BuildInfo(buildVersion, buildDate, buildCommit)
 	agent, err := newAgent()
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	agent.notifyCtx = ctx
+	agent.shutdown = cancel
 	agent.run()
+
 	/*
 		fmem, err := os.Create("profiles/res.pprof")
 		if err != nil {
@@ -77,7 +102,12 @@ func (agent *agent) pollMetrics() {
 		agent.pollMetrics()
 		agent.printMetricsLog("<= Read")
 	}
-	time.AfterFunc(time.Duration(agent.client.PollInterval)*time.Second, f)
+	select {
+	case <-agent.notifyCtx.Done():
+		logger.Infof("Получен сигнал отмены, завершаем операции pollMetrics")
+	default:
+		time.AfterFunc(time.Duration(agent.client.PollInterval)*time.Second, f)
+	}
 }
 
 func (agent *agent) pollUtilMetrics() {
@@ -86,7 +116,12 @@ func (agent *agent) pollUtilMetrics() {
 		agent.pollUtilMetrics()
 		agent.printMetricsLog("<= Util")
 	}
-	time.AfterFunc(time.Duration(agent.client.PollInterval)*time.Second, f)
+	select {
+	case <-agent.notifyCtx.Done():
+		logger.Infof("Получен сигнал отмены, завершаем операции pollUtilMetrics")
+	default:
+		time.AfterFunc(time.Duration(agent.client.PollInterval)*time.Second, f)
+	}
 }
 
 func (agent *agent) reportMetrics() {
@@ -96,7 +131,12 @@ func (agent *agent) reportMetrics() {
 		agent.reportMetrics()
 		agent.printMetricsLog("=> Push")
 	}
-	time.AfterFunc(time.Duration(agent.client.ReportInterval)*time.Second, f)
+	select {
+	case <-agent.notifyCtx.Done():
+		logger.Infof("Получен сигнал отмены, завершаем операции reportMetrics")
+	default:
+		time.AfterFunc(time.Duration(agent.client.ReportInterval)*time.Second, f)
+	}
 }
 
 func (agent *agent) pushMetrics() {
