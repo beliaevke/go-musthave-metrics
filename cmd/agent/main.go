@@ -1,10 +1,10 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
-	"os"
 	"os/signal"
 	"reflect"
 	"runtime"
@@ -30,8 +30,8 @@ type agent struct {
 	CounterMetrics map[string]int64
 	GaugeMetrics   map[string]string
 	client         client.Locallink
-	sigs           chan os.Signal
-	shutdown       bool
+	notifyCtx      context.Context
+	shutdown       context.CancelFunc
 }
 
 func (agent *agent) run() {
@@ -40,7 +40,19 @@ func (agent *agent) run() {
 	go agent.pollMetrics()
 	go agent.pollUtilMetrics()
 	go agent.reportMetrics()
-	time.Sleep(30 * time.Second)
+
+	for i := 0; i < 30; i++ {
+		select {
+		case <-agent.notifyCtx.Done():
+			time.Sleep(time.Duration(agent.client.PollInterval) * time.Second * 3)
+			agent.printAgentLog("Stop (on signal)")
+			agent.shutdown()
+			return
+		default:
+			time.Sleep(1 * time.Second)
+		}
+	}
+
 	agent.printAgentLog("Stop")
 }
 
@@ -53,8 +65,8 @@ func newAgent() (*agent, error) {
 
 func main() {
 
-	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
 
 	logger.BuildInfo(buildVersion, buildDate, buildCommit)
 	agent, err := newAgent()
@@ -62,7 +74,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	agent.sigs = sigs
+	agent.notifyCtx = ctx
+	agent.shutdown = cancel
 	agent.run()
 
 	/*
@@ -90,16 +103,10 @@ func (agent *agent) pollMetrics() {
 		agent.printMetricsLog("<= Read")
 	}
 	select {
-	case sig := <-agent.sigs:
-		agent.shutdown = true
-		logger.Warnf("Получен сигнал: " + sig.String())
+	case <-agent.notifyCtx.Done():
+		logger.Infof("Получен сигнал отмены, завершаем операции pollMetrics")
 	default:
-		if !agent.shutdown {
-			time.AfterFunc(time.Duration(agent.client.PollInterval)*time.Second, f)
-		}
-	}
-	if agent.shutdown {
-		logger.Infof("Получен сигнал, завершаем операции pollMetrics")
+		time.AfterFunc(time.Duration(agent.client.PollInterval)*time.Second, f)
 	}
 }
 
@@ -110,16 +117,10 @@ func (agent *agent) pollUtilMetrics() {
 		agent.printMetricsLog("<= Util")
 	}
 	select {
-	case sig := <-agent.sigs:
-		agent.shutdown = true
-		logger.Warnf("Получен сигнал: " + sig.String())
+	case <-agent.notifyCtx.Done():
+		logger.Infof("Получен сигнал отмены, завершаем операции pollUtilMetrics")
 	default:
-		if !agent.shutdown {
-			time.AfterFunc(time.Duration(agent.client.PollInterval)*time.Second, f)
-		}
-	}
-	if agent.shutdown {
-		logger.Infof("Получен сигнал, завершаем операции pollUtilMetrics")
+		time.AfterFunc(time.Duration(agent.client.PollInterval)*time.Second, f)
 	}
 }
 
@@ -131,16 +132,10 @@ func (agent *agent) reportMetrics() {
 		agent.printMetricsLog("=> Push")
 	}
 	select {
-	case sig := <-agent.sigs:
-		agent.shutdown = true
-		logger.Warnf("Получен сигнал: " + sig.String())
+	case <-agent.notifyCtx.Done():
+		logger.Infof("Получен сигнал отмены, завершаем операции reportMetrics")
 	default:
-		if !agent.shutdown {
-			time.AfterFunc(time.Duration(agent.client.ReportInterval)*time.Second, f)
-		}
-	}
-	if agent.shutdown {
-		logger.Infof("Получен сигнал, завершаем операции reportMetrics")
+		time.AfterFunc(time.Duration(agent.client.ReportInterval)*time.Second, f)
 	}
 }
 
