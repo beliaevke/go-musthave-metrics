@@ -98,6 +98,10 @@ func run(cfg config.ServerFlags) *http.Server {
 		kd := service.NewKeyData(cfg.FlagCryptoKey)
 		mux.Use(kd.WithEncrypt)
 	}
+	if cfg.FlagTrustedSubnet != "" {
+		ts := service.NewTrustedSubnet(cfg.FlagTrustedSubnet)
+		mux.Use(ts.WithLookupIP)
+	}
 	mux.Use(logger.WithLogging, compress.WithGzipEncoding)
 	mux.Handle("/update/{metricType}/{metricName}/{metricValue}", handlers.UpdateHandler())
 	mux.Handle("/update/", updateHandler(cfg))

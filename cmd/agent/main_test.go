@@ -173,7 +173,11 @@ func Test_agent_pushBatchMetrics(t *testing.T) {
 		agent *agent
 	}{
 		{name: "1",
-			agent: &agent{client: client.Locallink{}},
+			agent: &agent{
+				client: client.Locallink{
+					RunAddr: "127.0.0.1:8080",
+				},
+			},
 		},
 	}
 
