@@ -237,9 +237,11 @@ func (srv *srv) PushProtoMetrics(ctx context.Context, in *proto.PushProtoMetrics
 
 	for _, m := range in.Metrics {
 		if m.MType == "gauge" {
-			storage.GaugeMetric{Name: m.ID, Value: strconv.FormatFloat(*m.Value, 'g', -1, 64)}.Add()
+			err := storage.GaugeMetric{Name: m.ID, Value: strconv.FormatFloat(*m.Value, 'g', -1, 64)}.Add()
+			logger.Warnf("GaugeMetric add error: " + err.Error())
 		} else if m.MType == "counter" {
-			storage.CounterMetric{Name: m.ID, Value: strconv.FormatInt(*m.Delta, 10)}.Add()
+			err := storage.CounterMetric{Name: m.ID, Value: strconv.FormatInt(*m.Delta, 10)}.Add()
+			logger.Warnf("CounterMetric add error: " + err.Error())
 		} else {
 			// no valid
 			logger.Infof("no valid metric type: " + m.MType)
