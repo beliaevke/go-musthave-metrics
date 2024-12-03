@@ -159,7 +159,7 @@ func (ts TrustedSubnet) WithLookupIP(h http.Handler) http.Handler {
 				http.Error(w, "header X-Real-IP not found ", http.StatusForbidden)
 				return
 			}
-			trusted, err := findIPInTrustedSubnet(agentIP, ts.TrustedSubnet)
+			trusted, err := FindIPInTrustedSubnet(agentIP, ts.TrustedSubnet)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusForbidden)
 				return
@@ -176,7 +176,7 @@ func (ts TrustedSubnet) WithLookupIP(h http.Handler) http.Handler {
 	return http.HandlerFunc(decryptFunc)
 }
 
-func findIPInTrustedSubnet(ip string, subnet string) (bool, error) {
+func FindIPInTrustedSubnet(ip string, subnet string) (bool, error) {
 	_, subnetCIDR, err := net.ParseCIDR(subnet)
 	if err != nil {
 		return false, err

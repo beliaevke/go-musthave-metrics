@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"expvar"
+	"net"
 	"net/http"
 	"net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
 	rpprof "runtime/pprof"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -18,18 +20,34 @@ import (
 	"musthave-metrics/internal/logger"
 	"musthave-metrics/internal/postgres"
 	"musthave-metrics/internal/service"
+	"musthave-metrics/internal/storage"
+	"musthave-metrics/proto"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 var (
 	buildVersion, buildDate, buildCommit string = "N/A", "N/A", "N/A"
 )
 
+type srv struct {
+	// implement GRPC server
+	proto.UnimplementedMetricServerServer
+	// GRPC server
+	gRPCServer *grpc.Server
+	// IP Interceptor
+	ts *service.TrustedSubnet
+}
+
 func main() {
 	// через этот канал сообщим основному потоку, что соединения закрыты
 	idleConnsClosed := make(chan struct{})
+	//gRPCClosed := make(chan struct{})
 	// канал для перенаправления прерываний
 	// поскольку нужно отловить всего одно прерывание,
 	// ёмкости 1 для канала будет достаточно
@@ -61,6 +79,23 @@ func main() {
 		// сообщаем основному потоку,
 		// что все сетевые соединения обработаны и закрыты
 		close(idleConnsClosed)
+	}()
+
+	srv, _ := newServer(cfg)
+	srv.runGRPCServer()
+
+	// запускаем горутину обработки пойманных прерываний
+	go func() {
+		// читаем из канала прерываний
+		// поскольку нужно прочитать только одно прерывание,
+		// можно обойтись без цикла
+		<-sigs
+		// получили сигнал os.Interrupt, запускаем процедуру graceful shutdown
+		srv.gRPCServer.GracefulStop()
+		logger.Warnf("gRPC server Shutdown...")
+		// сообщаем основному потоку,
+		// что все сетевые соединения обработаны и закрыты
+		//close(gRPCClosed)
 	}()
 
 	if err := HTTPServer.ListenAndServe(); err != http.ErrServerClosed {
@@ -171,4 +206,67 @@ func Profiler() http.Handler {
 	r.Handle("/pprof/allocs", pprof.Handler("allocs"))
 
 	return r
+}
+
+func newServer(cfg config.ServerFlags) (*srv, error) {
+	return &srv{ts: service.NewTrustedSubnet(cfg.FlagTrustedSubnet)}, nil
+}
+
+func (srv *srv) runGRPCServer() {
+
+	listen, err := net.Listen("tcp", ":3200")
+	if err != nil {
+		logger.Warnf("gRPC Server error: " + err.Error())
+	}
+
+	srv.gRPCServer = grpc.NewServer(grpc.ChainUnaryInterceptor(srv.lookupIPInterceptor))
+
+	proto.RegisterMetricServerServer(srv.gRPCServer, srv)
+	logger.Infof("Сервер gRPC начал работу")
+
+	go func() {
+		if err := srv.gRPCServer.Serve(listen); err != nil {
+			logger.Warnf("gRPC listen error: " + err.Error())
+		}
+	}()
+
+}
+
+func (srv *srv) PushProtoMetrics(ctx context.Context, in *proto.PushProtoMetricsRequest) (*proto.PushProtoMetricsResponse, error) {
+	var response proto.PushProtoMetricsResponse
+
+	for _, m := range in.Metrics {
+		if m.MType == "gauge" {
+			storage.GaugeMetric{Name: m.ID, Value: strconv.FormatFloat(*m.Value, 'g', -1, 64)}.Add()
+		} else if m.MType == "counter" {
+			storage.CounterMetric{Name: m.ID, Value: strconv.FormatInt(*m.Delta, 10)}.Add()
+		} else {
+			// no valid
+			logger.Infof("no valid metric type: " + m.MType)
+		}
+	}
+
+	return &response, nil
+}
+
+func (srv *srv) lookupIPInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	var locallinkIP string
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		param := md.Get("X-Real-IP")
+		if len(param) > 0 {
+			locallinkIP = param[0]
+		}
+	}
+	if len(locallinkIP) == 0 {
+		return nil, status.Error(codes.Aborted, "not found client IP")
+	}
+	trusted, err := service.FindIPInTrustedSubnet(locallinkIP, srv.ts.TrustedSubnet)
+	if err != nil {
+		return nil, status.Error(codes.Aborted, err.Error())
+	}
+	if !trusted {
+		return nil, status.Error(codes.Aborted, "agent IP not in trusted subnet")
+
+	}
+	return handler(ctx, req)
 }
