@@ -496,6 +496,10 @@ func UpdateMetrics(locallink client.Locallink, mtype string, mname string, mvalu
 		return err
 	}
 	request.Header.Set("Content-Type", locallink.ContentType)
+
+	locallinkIP := service.GetIP(locallink.RunAddr)
+	request.Header.Set("X-Real-IP", locallinkIP.String())
+
 	response, err := client.Do(request)
 	if err != nil {
 		return err
@@ -545,6 +549,10 @@ func UpdateBatchMetrics(locallink client.Locallink, metrics []postgres.Metrics) 
 	}
 	request.Header.Set("Content-Type", `application/json`)
 	request.Header.Set("Content-Encoding", "gzip")
+
+	locallinkIP := service.GetIP(locallink.RunAddr)
+	request.Header.Set("X-Real-IP", locallinkIP.String())
+
 	if locallink.HashKey != "" {
 		request.Header.Set("HashSHA256", service.GetHashString(data.Bytes(), locallink.HashKey))
 	}

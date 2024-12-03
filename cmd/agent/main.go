@@ -15,11 +15,16 @@ import (
 
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 
 	"musthave-metrics/cmd/agent/client"
 	"musthave-metrics/handlers"
 	"musthave-metrics/internal/logger"
 	"musthave-metrics/internal/postgres"
+	"musthave-metrics/internal/service"
+	"musthave-metrics/proto"
 )
 
 var (
@@ -128,6 +133,7 @@ func (agent *agent) reportMetrics() {
 	f := func() {
 		agent.pushMetrics()
 		agent.pushBatchMetricsWithWorkers()
+		agent.pushProtoMetrics()
 		agent.reportMetrics()
 		agent.printMetricsLog("=> Push")
 	}
@@ -148,6 +154,52 @@ func (agent *agent) pushMetrics() {
 		err = handlers.UpdateMetrics(agent.client, "gauge", name, val)
 	}
 	if err != nil {
+		agent.printErrorLog(err)
+	}
+}
+
+func (agent *agent) pushProtoMetrics() {
+
+	conn, err := grpc.Dial(":3200", grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+
+	c := proto.NewMetricServerClient(conn)
+	req := proto.PushProtoMetricsRequest{
+		Metrics: make([]*proto.Metric, 0),
+	}
+	for name, val := range agent.CounterMetrics {
+		req.Metrics = append(req.Metrics,
+			&proto.Metric{
+				ID:    name,
+				MType: "counter",
+				Delta: &val,
+			},
+		)
+	}
+	for name, val := range agent.GaugeMetrics {
+		gaugeValue, errprs := strconv.ParseFloat(val, 64)
+		if errprs != nil {
+			agent.printErrorLog(errprs)
+			continue
+		}
+		req.Metrics = append(req.Metrics,
+			&proto.Metric{
+				ID:    name,
+				MType: "gauge",
+				Value: &gaugeValue,
+			},
+		)
+	}
+
+	locallinkIP := service.GetIP(agent.client.RunAddr)
+	md := metadata.New(map[string]string{"X-Real-IP": locallinkIP.String()})
+	ctx := metadata.NewOutgoingContext(agent.notifyCtx, md)
+
+	response, err := c.PushProtoMetrics(ctx, &req)
+	if response == nil || err != nil {
 		agent.printErrorLog(err)
 	}
 }
