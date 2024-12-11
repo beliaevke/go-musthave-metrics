@@ -17,10 +17,12 @@ import (
 	"github.com/shirou/gopsutil/v3/mem"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/metadata"
 
 	"musthave-metrics/cmd/agent/client"
 	"musthave-metrics/handlers"
+	"musthave-metrics/internal/crypt"
 	"musthave-metrics/internal/logger"
 	"musthave-metrics/internal/postgres"
 	"musthave-metrics/internal/service"
@@ -195,10 +197,27 @@ func (agent *agent) pushProtoMetrics() {
 	}
 
 	locallinkIP := service.GetIP(agent.client.RunAddr)
-	md := metadata.New(map[string]string{"X-Real-IP": locallinkIP.String()})
+
+	encrypteddata := agent.client.SecretToken
+	if agent.client.PublicKeyPath != "" {
+		encrypteddata, err = crypt.Encrypt(agent.client.PublicKeyPath, agent.client.SecretToken)
+		if err != nil {
+			logger.Warnf("Error encode request body: " + err.Error())
+		}
+	}
+
+	md := metadata.New(
+		map[string]string{
+			"X-Real-IP":      locallinkIP.String(),
+			"X-Crypto-Key":   agent.client.PublicKeyPath,
+			"X-Secret-Token": encrypteddata,
+		})
+
 	ctx := metadata.NewOutgoingContext(agent.notifyCtx, md)
 
-	response, err := c.PushProtoMetrics(ctx, &req)
+	compressor := grpc.UseCompressor(gzip.Name)
+
+	response, err := c.PushProtoMetrics(ctx, &req, compressor)
 	if response == nil || err != nil {
 		agent.printErrorLog(err)
 	}

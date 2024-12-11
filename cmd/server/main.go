@@ -17,6 +17,7 @@ import (
 	"musthave-metrics/cmd/server/config"
 	"musthave-metrics/handlers"
 	"musthave-metrics/internal/compress"
+	"musthave-metrics/internal/crypt"
 	"musthave-metrics/internal/logger"
 	"musthave-metrics/internal/postgres"
 	"musthave-metrics/internal/service"
@@ -27,6 +28,7 @@ import (
 	"github.com/go-chi/chi/middleware"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	_ "google.golang.org/grpc/encoding/gzip"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 )
@@ -42,6 +44,9 @@ type srv struct {
 	gRPCServer *grpc.Server
 	// IP Interceptor
 	ts *service.TrustedSubnet
+	// RSA Interceptor
+	kd *service.KeyData
+	st string
 }
 
 func main() {
@@ -209,7 +214,10 @@ func Profiler() http.Handler {
 }
 
 func newServer(cfg config.ServerFlags) (*srv, error) {
-	return &srv{ts: service.NewTrustedSubnet(cfg.FlagTrustedSubnet)}, nil
+	return &srv{
+		ts: service.NewTrustedSubnet(cfg.FlagTrustedSubnet),
+		kd: service.NewKeyData(cfg.FlagCryptoKey),
+		st: "SecretToken"}, nil
 }
 
 func (srv *srv) runGRPCServer() {
@@ -219,7 +227,7 @@ func (srv *srv) runGRPCServer() {
 		logger.Warnf("gRPC Server error: " + err.Error())
 	}
 
-	srv.gRPCServer = grpc.NewServer(grpc.ChainUnaryInterceptor(srv.lookupIPInterceptor))
+	srv.gRPCServer = grpc.NewServer(grpc.ChainUnaryInterceptor(srv.lookupIPInterceptor, srv.rsaInterceptor))
 
 	proto.RegisterMetricServerServer(srv.gRPCServer, srv)
 	logger.Infof("Сервер gRPC начал работу")
@@ -238,10 +246,14 @@ func (srv *srv) PushProtoMetrics(ctx context.Context, in *proto.PushProtoMetrics
 	for _, m := range in.Metrics {
 		if m.MType == "gauge" {
 			err := storage.GaugeMetric{Name: m.ID, Value: strconv.FormatFloat(*m.Value, 'g', -1, 64)}.Add()
-			logger.Warnf("GaugeMetric add error: " + err.Error())
+			if err != nil {
+				logger.Warnf("GaugeMetric add error: " + err.Error())
+			}
 		} else if m.MType == "counter" {
 			err := storage.CounterMetric{Name: m.ID, Value: strconv.FormatInt(*m.Delta, 10)}.Add()
-			logger.Warnf("CounterMetric add error: " + err.Error())
+			if err != nil {
+				logger.Warnf("CounterMetric add error: " + err.Error())
+			}
 		} else {
 			// no valid
 			logger.Infof("no valid metric type: " + m.MType)
@@ -270,5 +282,37 @@ func (srv *srv) lookupIPInterceptor(ctx context.Context, req interface{}, info *
 		return nil, status.Error(codes.Aborted, "agent IP not in trusted subnet")
 
 	}
+	return handler(ctx, req)
+}
+
+func (srv *srv) rsaInterceptor(ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (interface{}, error) {
+	var cryptoKey, secretToken string
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		paramKey := md.Get("X-Crypto-Key")
+		if len(paramKey) > 0 {
+			cryptoKey = paramKey[0]
+		}
+		paramToken := md.Get("X-Secret-Token")
+		if len(paramToken) > 0 {
+			secretToken = paramToken[0]
+		}
+	}
+	if len(cryptoKey) > 0 {
+
+		if len(secretToken) == 0 {
+			return nil, status.Error(codes.Aborted, "not found secret token")
+		}
+
+		decryptToken, err := crypt.Decrypt(srv.kd.PrivateKeyPath, secretToken)
+
+		if err != nil {
+			return nil, status.Error(codes.Aborted, err.Error())
+		}
+
+		if decryptToken != srv.st {
+			return nil, status.Error(codes.Aborted, "wrong secret token")
+		}
+	}
+
 	return handler(ctx, req)
 }

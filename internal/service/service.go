@@ -151,23 +151,26 @@ func NewTrustedSubnet(trustedSubnet string) *TrustedSubnet {
 
 func (ts TrustedSubnet) WithLookupIP(h http.Handler) http.Handler {
 	decryptFunc := func(w http.ResponseWriter, r *http.Request) {
+
+		if ts.TrustedSubnet == "" {
+			h.ServeHTTP(w, r)
+		}
+
 		ow := w
 
-		if ts.TrustedSubnet != "" {
-			agentIP := r.Header.Get("X-Real-IP")
-			if agentIP == "" {
-				http.Error(w, "header X-Real-IP not found ", http.StatusForbidden)
-				return
-			}
-			trusted, err := FindIPInTrustedSubnet(agentIP, ts.TrustedSubnet)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusForbidden)
-				return
-			}
-			if !trusted {
-				http.Error(w, "agent IP not in trusted subnet", http.StatusForbidden)
-				return
-			}
+		agentIP := r.Header.Get("X-Real-IP")
+		if agentIP == "" {
+			http.Error(w, "header X-Real-IP not found ", http.StatusForbidden)
+			return
+		}
+		trusted, err := FindIPInTrustedSubnet(agentIP, ts.TrustedSubnet)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusForbidden)
+			return
+		}
+		if !trusted {
+			http.Error(w, "agent IP not in trusted subnet", http.StatusForbidden)
+			return
 		}
 
 		// передаём управление хендлеру
