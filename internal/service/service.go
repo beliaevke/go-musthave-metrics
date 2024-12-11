@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 
 	"crypto/hmac"
@@ -25,6 +26,10 @@ type hashResponseWriter struct {
 
 type KeyData struct {
 	PrivateKeyPath string
+}
+
+type TrustedSubnet struct {
+	TrustedSubnet string
 }
 
 func (r *hashResponseWriter) Write(b []byte) (int, error) {
@@ -136,4 +141,62 @@ func (kd KeyData) WithEncrypt(h http.Handler) http.Handler {
 		h.ServeHTTP(ow, r)
 	}
 	return http.HandlerFunc(decryptFunc)
+}
+
+func NewTrustedSubnet(trustedSubnet string) *TrustedSubnet {
+	return &TrustedSubnet{
+		TrustedSubnet: trustedSubnet,
+	}
+}
+
+func (ts TrustedSubnet) WithLookupIP(h http.Handler) http.Handler {
+	decryptFunc := func(w http.ResponseWriter, r *http.Request) {
+
+		if ts.TrustedSubnet == "" {
+			h.ServeHTTP(w, r)
+		}
+
+		ow := w
+
+		agentIP := r.Header.Get("X-Real-IP")
+		if agentIP == "" {
+			http.Error(w, "header X-Real-IP not found ", http.StatusForbidden)
+			return
+		}
+		trusted, err := FindIPInTrustedSubnet(agentIP, ts.TrustedSubnet)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusForbidden)
+			return
+		}
+		if !trusted {
+			http.Error(w, "agent IP not in trusted subnet", http.StatusForbidden)
+			return
+		}
+
+		// передаём управление хендлеру
+		h.ServeHTTP(ow, r)
+	}
+	return http.HandlerFunc(decryptFunc)
+}
+
+func FindIPInTrustedSubnet(ip string, subnet string) (bool, error) {
+	_, subnetCIDR, err := net.ParseCIDR(subnet)
+	if err != nil {
+		return false, err
+	}
+	ipCIDR := net.ParseIP(ip)
+
+	return subnetCIDR.Contains(ipCIDR), nil
+}
+
+func GetIP(RunAddr string) net.IP {
+	conn, err := net.Dial("udp", RunAddr)
+	if err != nil {
+		logger.Warnf("GetIP error: " + err.Error())
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return localAddr.IP
 }

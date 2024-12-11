@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package metrics;
+
+option go_package = "musthave-metrics/proto";
+
+service MetricServer {
+	rpc PushProtoMetrics(PushProtoMetricsRequest) returns (PushProtoMetricsResponse) {}
+}
+
+message PushProtoMetricsRequest {
+	string error = 1;
+	repeated Metric metrics = 2;
+}
+
+message PushProtoMetricsResponse {
+	string error = 1;
+}
+
+message Metric {
+    string ID = 1;
+	string MType = 2;
+	optional int64 Delta = 3;
+	optional double Value = 4;
+}

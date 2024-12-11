@@ -20,6 +20,7 @@ type ServerFlags struct {
 	FlagHashKey         string
 	FlagMemProfile      string
 	FlagCryptoKey       string `json:"crypto_key"`
+	FlagTrustedSubnet   string `json:"trusted_subnet"`
 	EnvStoreInterval    int    `env:"STORE_INTERVAL"`
 	FileStoragePath     string `env:"FILE_STORAGE_PATH"`
 	EnvRestore          bool   `env:"RESTORE"`
@@ -28,6 +29,7 @@ type ServerFlags struct {
 	MemProfile          string `env:"MEM_PROFILE"`
 	envCryptoKey        string `env:"CRYPTO_KEY"`
 	Config              string `env:"CONFIGSRV"`
+	envTrustedSubnet    string `env:"TRUSTED_SUBNET"`
 }
 
 // ParseFlags обрабатывает аргументы командной строки
@@ -53,7 +55,7 @@ func ParseFlags() ServerFlags {
 	// булево значение (true/false), определяющее, загружать или нет ранее сохранённые значения из указанного файла при старте сервера (по умолчанию true).
 	flag.BoolVar(&cfg.FlagRestore, "r", true, "flag restore")
 	// Строка с адресом подключения к БД должна получаться из переменной окружения DATABASE_DSN или флага командной строки -d.
-	flag.StringVar(&cfg.FlagDatabaseDSN, "d", "postgres://postgres:pos111@localhost:5432/postgres?sslmode=disable", "Database DSN")
+	flag.StringVar(&cfg.FlagDatabaseDSN, "d", "", "Database DSN")
 	// регистрируем переменную FlagHashKey
 	// как аргумент -k со значением "" по умолчанию
 	flag.StringVar(&cfg.FlagHashKey, "k", "", "hash key")
@@ -62,7 +64,10 @@ func ParseFlags() ServerFlags {
 	flag.StringVar(&cfg.FlagMemProfile, "mem", "profiles/base.pprof", "mem profile path")
 	// регистрируем переменную FlagCryptoKey
 	// как аргумент -crypto-key со значением локального каталога по умолчанию
-	flag.StringVar(&cfg.FlagCryptoKey, "crypto-key", "D:/_learning/YaP_workspace/go-musthave-metrics/cmd/cryptokeys/key", "path to private key")
+	flag.StringVar(&cfg.FlagCryptoKey, "crypto-key", "", "path to private key")
+	// регистрируем переменную FlagTrustedSubnet
+	// как аргумент -t со значением строкового представления бесклассовой адресации (CIDR).
+	flag.StringVar(&cfg.FlagTrustedSubnet, "t", "127.0.0.1/24", "trusted subnet")
 	// парсим переданные серверу аргументы в зарегистрированные переменные
 	flag.Parse()
 
@@ -96,6 +101,11 @@ func ParseFlags() ServerFlags {
 		cfg.FlagCryptoKey = cfg.envCryptoKey
 	} else if envCryptoKey := os.Getenv("CRYPTO_KEY"); envCryptoKey != "" {
 		cfg.FlagCryptoKey = envCryptoKey
+	}
+	if cfg.envTrustedSubnet != "" {
+		cfg.FlagTrustedSubnet = cfg.envTrustedSubnet
+	} else if envTrustedSubnet := os.Getenv("TRUSTED_SUBNET"); envTrustedSubnet != "" {
+		cfg.FlagTrustedSubnet = envTrustedSubnet
 	}
 	return cfg
 }
