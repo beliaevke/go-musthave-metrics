@@ -41,7 +41,7 @@ func ParseFlags() ClientFlags {
 	}
 	// регистрируем переменную flagRunAddr
 	// как аргумент -a со значением :8080 по умолчанию
-	flag.StringVar(&cfg.FlagRunAddr, "a", "localhost:8080", "address and port to run server")
+	flag.StringVar(&cfg.FlagRunAddr, "a", "127.0.0.1:8080", "address and port to run server")
 	// регистрируем переменную flagReportInterval
 	// как аргумент -r со значением 10 по умолчанию
 	flag.IntVar(&cfg.FlagReportInterval, "r", 10, "report interval")

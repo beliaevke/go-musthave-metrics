@@ -18,6 +18,7 @@ type Locallink struct {
 	HashKey         string
 	RateLimit       int
 	PublicKeyPath   string
+	SecretToken     string
 }
 
 func (locallink *Locallink) Run() error {
@@ -32,6 +33,7 @@ func (locallink *Locallink) Run() error {
 	locallink.HashKey = cfg.FlagHashKey
 	locallink.RateLimit = cfg.FlagRateLimit
 	locallink.PublicKeyPath = cfg.FlagCryptoKey
+	locallink.SecretToken = "SecretToken"
 	fmt.Printf("%s (!) Running server on %s, Report interval: %v, Poll interval: %v\n", time.Now().Format(time.DateTime), cfg.FlagRunAddr, cfg.FlagReportInterval, cfg.FlagPollInterval)
 	return err
 }
